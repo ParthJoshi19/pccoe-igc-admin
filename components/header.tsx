@@ -24,8 +24,6 @@ export function Header() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case "manager":
-        return "text-blue-600 dark:text-blue-400"
       case "admin":
         return "text-green-600 dark:text-green-400"
       case "judge":
@@ -65,10 +63,6 @@ export function Header() {
               >
                 <Avatar className="h-9 w-9">
                   <AvatarFallback>
-                    {user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
                   </AvatarFallback>
                 </Avatar>
               </button>
@@ -77,7 +71,6 @@ export function Header() {
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium leading-none">{user.name}</p>
-                  <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                   <p className={`text-xs font-medium capitalize ${getRoleColor(user.role)}`}>{user.role}</p>
                 </div>
               </DropdownMenuLabel>

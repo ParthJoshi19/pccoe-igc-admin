@@ -26,7 +26,7 @@ export function LoginForm() {
     setError("")
 
     try {
-      const user = authenticateUser(email, password)
+      const user =await authenticateUser(email, password)
       if (user) {
         login(user)
       } else {
@@ -54,7 +54,7 @@ export function LoginForm() {
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
-              type="email"
+              type="text"
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -92,23 +92,7 @@ export function LoginForm() {
             {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
-        <div className="mt-6 p-4 bg-muted rounded-lg">
-          <p className="text-sm font-medium mb-2">Demo Credentials:</p>
-          <div className="text-xs space-y-1">
-            <p>
-              <strong>Manager:</strong> manager@hackathon.com
-            </p>
-            <p>
-              <strong>Admin:</strong> admin1@hackathon.com
-            </p>
-            <p>
-              <strong>Judge:</strong> judge1@hackathon.com
-            </p>
-            <p>
-              <strong>Password:</strong> password123
-            </p>
-          </div>
-        </div>
+       
       </CardContent>
     </Card>
   )
