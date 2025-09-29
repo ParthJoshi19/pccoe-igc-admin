@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CheckCircle, Clock, XCircle, Eye, ExternalLink, Video, Calendar, User, FileText, Star } from "lucide-react"
-import { mockTeams, type Team } from "@/lib/auth"
+import {  type Team } from "@/lib/auth"
 import { useAuth } from "@/contexts/auth-context"
 
 interface TeamEvaluation {
@@ -29,7 +29,7 @@ interface TeamEvaluation {
 
 export function JudgeDashboard() {
   const { user } = useAuth()
-  const [teams] = useState<Team[]>(mockTeams)
+  const [teams] = useState<Team[]>([])
   const [evaluations, setEvaluations] = useState<TeamEvaluation[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [evaluationDialog, setEvaluationDialog] = useState(false)
