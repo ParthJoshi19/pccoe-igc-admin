@@ -91,13 +91,6 @@ export function TeamDetailsDialog({ team, open, onOpenChange, judges, readOnly =
                   <SelectTrigger>
                     <SelectValue placeholder="Select a judge" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {judges.map((judge) => (
-                      <SelectItem key={judge.id} value={judge.id}>
-                        {judge.name} ({judge.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
                 </Select>
               </div>
 

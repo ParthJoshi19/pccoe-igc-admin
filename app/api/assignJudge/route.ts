@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         assignment: {
           teamId,
           judgeEmail,
-          judgeId: String(judge),
+          judgeId: String(judgeEmail), // FIX: return judge _id
           assignedAt: new Date().toISOString(),
           videoUpdated: videoUpdate.matchedCount > 0,
         },

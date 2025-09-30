@@ -50,14 +50,6 @@ const videoSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
-  // Assigned judge identifier (e.g., judge's username/email)
-  assignedJudge: {
-    type: String,
-    trim: true,
-    lowercase: true,
-    index: true,
-    default: null,
-  },
   videoUrl: {
     type: String,
     required: true,
@@ -100,3 +92,4 @@ videoSchema.index({ teamId: 1 }, { unique: true });
 const Video = mongoose.models.Video || mongoose.model('Video', videoSchema);
 
 export default Video;
+

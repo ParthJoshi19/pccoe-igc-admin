@@ -121,6 +121,9 @@ export function AdminDashboard() {
                   : undefined,
               videoUrl: apiTeam.video?.videoUrl ?? apiTeam.videoUrl,
               pptUrl: apiTeam.pptUrl,
+              // NEW: assigned judge mapping from API
+              assignedJudgeId: apiTeam.assignedJudgeId ? String(apiTeam.assignedJudgeId) : undefined,
+              assignedJudgeEmail: apiTeam.assignedJudgeEmail,
             }
             return item as Team
           })
@@ -173,7 +176,7 @@ export function AdminDashboard() {
     // Build payload using team.teamId if available, fallback to internal id
     const payload = {
       teamId: team.teamId || team._id,
-      judgeEmail: judge.name, // fixed: send email, not name
+      judgeEmail: judge.name, // FIX: send email
     }
 
     // Optimistically update UI
@@ -231,7 +234,6 @@ export function AdminDashboard() {
         </Button>
       </div>
 
-      {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -361,6 +363,14 @@ export function AdminDashboard() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium">{team.teamName}</p>
+                            {/* NEW: show assigned judge badge */}
+                            {assignedJudge ? (
+                              <Badge variant="secondary">Judge: {assignedJudge.name}</Badge>
+                            ) : (team as any).assignedJudgeEmail ? (
+                              <Badge variant="secondary">Judge: {(team as any).assignedJudgeEmail}</Badge>
+                            ) : (
+                              <Badge variant="outline">Unassigned</Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">ID: {team.teamId}</p>
                           <p className="text-xs text-muted-foreground">
@@ -372,12 +382,12 @@ export function AdminDashboard() {
                             value={team.assignedJudgeId || ""}
                             onValueChange={(value) => handleAssignJudge(team._id, value)}
                           >
-                            <SelectTrigger className="h-8" value={team.assignedJudgeEmail || ""}>
+                            <SelectTrigger className="h-8">
                               <SelectValue placeholder="Assign Judge" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent defaultValue={team.assignedJudgeId || ""}>
                               {allJudges.map((judge) => (
-                                <SelectItem key={judge.id} value={judge.id}>
+                                <SelectItem key={judge.id} value={ judge.id}>
                                   {judge.name}
                                 </SelectItem>
                               ))}
@@ -582,6 +592,15 @@ export function AdminDashboard() {
                           <div>
                             <p className="text-sm font-medium text-muted-foreground">Last Updated</p>
                             <p className="text-base">{selectedTeam.updatedAt.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Assigned Judge</p>
+                            <p className="text-base">
+                              {(() => {
+                                const aj = users.find((u) => u.id === selectedTeam.assignedJudgeId)
+                                return aj?.name || t.assignedJudgeEmail || "Unassigned"
+                              })()}
+                            </p>
                           </div>
                         </CardContent>
                       </Card>
