@@ -17,6 +17,7 @@ export interface Team {
   videoUrl: string;
   status: "pending" | "approved" | "rejected";
   assignedJudgeId?: string;
+  assignedJudgeEmail?: string;
   submittedAt: Date;
   createdAt: Date;
   updatedAt: Date;
