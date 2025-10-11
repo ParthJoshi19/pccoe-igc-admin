@@ -354,4 +354,4 @@ TeamRegistrationSchema.methods.reject = function(reason: any) {
 };
 
 // Fix model export to reuse existing model (prevents OverwriteModelError in dev/HMR)
-export default mongoose.models.TeamRegistration || mongoose.model('TeamRegistration', TeamRegistrationSchema);
+export default mongoose.models.teams || mongoose.model('teams', TeamRegistrationSchema);

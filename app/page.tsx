@@ -13,9 +13,6 @@ export default function HomePage() {
     if (!isLoading && user) {
       // Redirect based on user role
       switch (user.role) {
-        case "manager":
-          router.push("/manager")
-          break
         case "admin":
           router.push("/admin")
           break

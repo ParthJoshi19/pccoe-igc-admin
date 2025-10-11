@@ -89,7 +89,7 @@ const videoSchema = new mongoose.Schema({
 videoSchema.index({ teamId: 1 }, { unique: true });
 
 // Reuse existing compiled model if present (prevents OverwriteModelError)
-const Video = mongoose.models.Video || mongoose.model('Video', videoSchema);
+const Video = mongoose.models.Videos || mongoose.model('Videos', videoSchema);
 
 export default Video;
 
