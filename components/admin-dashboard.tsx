@@ -59,7 +59,7 @@ export function AdminDashboard() {
   useEffect(() => {
     const getJudges = async () => {
       try {
-        const res = await fetch(`/api/getJudges`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getJudges`, {
           method: "POST",
           body: JSON.stringify({ token: user?.token }),
         });
@@ -87,7 +87,7 @@ export function AdminDashboard() {
     const getTeams = async () => {
       try {
         setLoadingTeams(true);
-        const res = await fetch(`/api/getTeams`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getTeams`, {
           method: "POST",
           body: JSON.stringify({ token: user?.token, page, limit }),
         });
@@ -134,7 +134,7 @@ export function AdminDashboard() {
           const mappedTeams: Team[] = data.data.map((apiTeam: any) => {
             const item: any = {
               _id:
-                apiTeam.teamId ||
+                apiTeam.id ||
                 apiTeam.registrationNumber ||
                 apiTeam._id ||
                 crypto.randomUUID?.() ||
@@ -162,7 +162,7 @@ export function AdminDashboard() {
                 : apiTeam.video?.videoUrl
                 ? { fileUrl: apiTeam.video.videoUrl }
                 : undefined,
-              videoUrl: apiTeam.video?.videoUrl ?? apiTeam.videoUrl,
+              videoUrl: apiTeam.video?.videoLink ?? apiTeam.videoLink,
               pptUrl: apiTeam.pptUrl,
               // NEW: assigned judge mapping from API
               assignedJudgeId: apiTeam.assignedJudgeId
@@ -178,6 +178,7 @@ export function AdminDashboard() {
               (Array.isArray(data.data) ? data.data.length : 0)
           );
         }
+        // console.log("Mapped Teams:", teams);
       } catch (error) {
         console.error("Failed to fetch teams:", error);
       } finally {
@@ -227,19 +228,21 @@ export function AdminDashboard() {
   const handleAssignJudge = async (teamInternalId: string, judgeId: string) => {
     // Find team and judge to resolve required payload fields
     const team = teams.find((t) => t._id === teamInternalId);
+    console.log(teams)
     const judge = users.find((u) => u.id === judgeId);
     if (!team || !judge) return;
 
     // Build payload using team.teamId if available, fallback to internal id
     const payload = {
       teamId: team.teamId || team._id,
-      judgeEmail: judge.name, // FIX: send email
+      judgeEmail: judge.name, 
     };
 
     // Optimistically update UI
     const prevTeams = teams;
+
     setTeams((ts) =>
-      ts.map((t) =>
+      ts.map((t) =>   
         t._id === teamInternalId
           ? { ...t, assignedJudgeId: judgeId, updatedAt: new Date() }
           : t
@@ -247,13 +250,13 @@ export function AdminDashboard() {
     );
 
     try {
-      const res = await fetch("/api/assignJudge", {
+      console.log("Assigning judge with payload:", payload);
+      const res = await fetch(`/api/assignJudge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        // Revert on failure
         setTeams(prevTeams);
         console.error("Failed to assign judge:", await res.text());
       }

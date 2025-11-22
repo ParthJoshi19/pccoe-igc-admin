@@ -12,7 +12,6 @@ interface RubricItem {
   evaluatedAt?: string | Date
 }
 
-// Simple Mongoose connection cache for Next.js App Router
 let cached = (global as any).mongoose as
   | { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null }
   | undefined

@@ -77,6 +77,43 @@ export function JudgeDashboard() {
   // Add simple downloading state for PPT download
   const [downloading, setDownloading] = useState(false)
 
+
+  useEffect(() => {
+    const run = async () => {
+      if (!user) return
+      const judge = (user as any)?.username ?? (user as any)?.email ?? (user as any)?.id
+      if (!judge) return
+
+      // console.log("Fetching teams for judge:", judge)
+
+      try {
+        const res = await fetch(`/api/getSpecTeams?judge=${encodeURIComponent(judge)}`, { cache: "no-store" })
+        if (!res.ok) return
+        const { data } = await res.json()
+        setTeams(data as Team[])
+
+
+        console.log("Fetched teams for judge:", data)
+
+        // Derive evaluations from returned team docs (Video schema)
+        const derived: TeamEvaluation[] = (data as any[]).map((t) => {
+          const latestRubric = Array.isArray(t.rubrics) && t.rubrics.length > 0 ? t.rubrics[t.rubrics.length - 1] : null
+          return {
+            teamId: t._id,
+            status: (t.status as TeamEvaluation["status"]) || "Pending",
+            feedback: latestRubric?.comments || "",
+            rating: typeof t.finalScore === "number" ? t.finalScore : 0,
+            evaluatedAt: latestRubric?.evaluatedAt ? new Date(latestRubric.evaluatedAt) : undefined,
+          }
+        })
+        setEvaluations(derived)
+      } catch {
+        // ignore
+      }
+    }
+    run()
+  }, [])
+
   // Helper: best-effort file downloader
   const downloadFile = async (url: string) => {
     try {
@@ -223,11 +260,11 @@ export function JudgeDashboard() {
   }
 
   // Use teams as returned from API (already filtered by judge)
-  const assignedTeams = teams
+  // const assignedTeams = teams
 
   // Map status counts using backend values
   const teamStats = {
-    total: assignedTeams.length,
+    total: teams ? teams.length : 0,
     evaluated: evaluations.filter((e) => e.status !== "Pending").length,
     approved: evaluations.filter((e) => e.status === "Approved").length,
     rejected: evaluations.filter((e) => e.status === "Reject").length,
@@ -293,7 +330,7 @@ export function JudgeDashboard() {
       const finalScore = currentRubrics.length > 0 ? finalFromRubrics : currentEvaluation.rating
 
       // Persist to backend
-      const res = await fetch("/api/evaluate", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/evaluate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -374,39 +411,7 @@ export function JudgeDashboard() {
     )
   }
 
-  useEffect(() => {
-    const run = async () => {
-      if (!user) return
-      const judge = (user as any)?.username ?? (user as any)?.email ?? (user as any)?.id
-      if (!judge) return
-
-      try {
-        const res = await fetch(`/api/getSpecTeams?judge=${encodeURIComponent(judge)}`, { cache: "no-store" })
-        if (!res.ok) return
-        const { data } = await res.json()
-        setTeams(data as Team[])
-
-
-        // console.log("Fetched teams for judge:", data)
-
-        // Derive evaluations from returned team docs (Video schema)
-        const derived: TeamEvaluation[] = (data as any[]).map((t) => {
-          const latestRubric = Array.isArray(t.rubrics) && t.rubrics.length > 0 ? t.rubrics[t.rubrics.length - 1] : null
-          return {
-            teamId: t._id,
-            status: (t.status as TeamEvaluation["status"]) || "Pending",
-            feedback: latestRubric?.comments || "",
-            rating: typeof t.finalScore === "number" ? t.finalScore : 0,
-            evaluatedAt: latestRubric?.evaluatedAt ? new Date(latestRubric.evaluatedAt) : undefined,
-          }
-        })
-        setEvaluations(derived)
-      } catch {
-        // ignore
-      }
-    }
-    run()
-  }, [user])
+  
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -476,7 +481,7 @@ export function JudgeDashboard() {
           <CardDescription>Review team submissions, watch videos, and provide evaluations</CardDescription>
         </CardHeader>
         <CardContent>
-          {assignedTeams.length === 0 ? (
+          {teams && teams.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium">No teams assigned yet</p>
@@ -484,7 +489,7 @@ export function JudgeDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {assignedTeams.map((team) => {
+              {teams && teams.map((team) => {
                 const evaluation = getTeamEvaluation(team._id)
                 const status = evaluation?.status || "Pending"
 

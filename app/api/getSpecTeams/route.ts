@@ -25,23 +25,21 @@ export async function GET(req: Request) {
 
     const assignedTeamIds: string[] = !Array.isArray(userDoc) && userDoc?.assignedTeams ? userDoc.assignedTeams : []
 
-    // Primary: use assignedTeams from user; Fallback: assignedJudge on videos (backward compatibility)
     const query = assignedTeamIds.length
       ? { teamId: { $in: assignedTeamIds } }
       : { assignedJudge: judge }
 
     const videos = await Video.find(query).sort({ submittedAt: -1 }).lean()
 
-    // NEW: fetch PPT URLs from TeamRegistration by teamId
     const teamIds = (videos as any[]).map((v) => v.teamId).filter(Boolean)
     const regs =
       teamIds.length > 0
-        ? await TeamRegistration.find({ teamId: { $in: teamIds } })
-            .select({ teamId: 1, "presentationPPT.fileUrl": 1 })
+        ? await TeamRegistration.find({ registrationNumber: { $in: teamIds } })
+            .select({ registrationNumber: 1, "presentationPPT.fileUrl": 1 })
             .lean()
         : []
     const pptMap = new Map<string, string | undefined>(
-      (regs as any[]).map((r) => [r.teamId, r?.presentationPPT?.fileUrl])
+      (regs as any[]).map((r) => [r.registrationNumber, r?.presentationPPT?.fileUrl])
     )
 
     const data = (videos as any[]).map((v) => ({
@@ -50,7 +48,6 @@ export async function GET(req: Request) {
       submittedAt: v.submittedAt instanceof Date ? v.submittedAt.toISOString() : v.submittedAt,
       createdAt: v.createdAt instanceof Date ? v.createdAt.toISOString() : v.createdAt,
       updatedAt: v.updatedAt instanceof Date ? v.updatedAt.toISOString() : v.updatedAt,
-      // NEW: include PPT URL for frontend
       pptUrl: pptMap.get(v.teamId),
     }))
 

@@ -1,4 +1,4 @@
-  import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
   import connectToDB from '../../../lib/database'
   import TeamRegistration from '../../../models/Team.model'
   import Video from '../../../models/video'
@@ -100,11 +100,16 @@
         }
       })
 
-      // console.log(results.map(r=>({teamId:r.registrationNumber,videoUrl:r.videoUrl})));
+      const sortedResults = (results as any[]).sort((a, b) => {
+        const byVideo = Number(Boolean(b.videoUrl)) - Number(Boolean(a.videoUrl))
+        if (byVideo !== 0) return byVideo
+        return new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime()
+      })
+
 
       const totalPages = Math.max(1, Math.ceil(total / limit))
 
-      return NextResponse.json({ data: results, pagination: { page, limit, total, totalPages } })
+      return NextResponse.json({ data: sortedResults, pagination: { page, limit, total, totalPages } })
     } catch (error) {
       return NextResponse.json(
         { error: 'Internal server error' },
