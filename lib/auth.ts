@@ -7,6 +7,7 @@ export interface User {
   name: string;
   role: UserRole;
   token:string
+  assignedTeams: string[];
 }
 
 export interface Team {

@@ -29,6 +29,7 @@ import {
   Users,
   FileText,
   PlayCircle,
+  Plus,
 } from "lucide-react";
 import { type User, type Team, canManageUser } from "@/lib/auth";
 import { useAuth } from "@/contexts/auth-context";
@@ -40,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRouter } from "next/router";
 
 export function AdminDashboard() {
   const { user } = useAuth();
@@ -52,17 +54,21 @@ export function AdminDashboard() {
   const [total, setTotal] = useState(0);
   const [loadingTeams, setLoadingTeams] = useState(false);
 
-  // NEW: preview state for Round 1 PPT and Round 2 Video
   const [pptPreviewUrl, setPptPreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+
+
 
   useEffect(() => {
     const getJudges = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getJudges`, {
-          method: "POST",
-          body: JSON.stringify({ token: user?.token }),
-        });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getJudges`,
+          {
+            method: "POST",
+            body: JSON.stringify({ token: user?.token }),
+          }
+        );
         const data = await res.json();
 
         console.log(data);
@@ -74,6 +80,9 @@ export function AdminDashboard() {
             email: apiUser.username,
             name: apiUser.username,
             role: apiUser.role,
+            assignedTeams: Array.isArray(apiUser.assignedTeams)
+              ? apiUser.assignedTeams.map(String)
+              : [],
             createdAt: new Date(),
             managerId: user?.id,
           }));
@@ -87,10 +96,13 @@ export function AdminDashboard() {
     const getTeams = async () => {
       try {
         setLoadingTeams(true);
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getTeams`, {
-          method: "POST",
-          body: JSON.stringify({ token: user?.token, page, limit }),
-        });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getTeams`,
+          {
+            method: "POST",
+            body: JSON.stringify({ token: user?.token, page, limit }),
+          }
+        );
         const data = await res.json();
 
         console.log(data);
@@ -120,6 +132,7 @@ export function AdminDashboard() {
               apiTeam.allocatedJudgeId !== "000000000000000000000000"
                 ? apiTeam.allocatedJudgeId
                 : undefined,
+            assignedJudgeEmail: apiTeam.assignedJudge,
             presentationPPT: apiTeam.presentationPPT,
             idCardsPDF: apiTeam.idCardsPDF,
             instituteNOC: apiTeam.instituteNOC,
@@ -227,22 +240,26 @@ export function AdminDashboard() {
   // Replace previous handleAssignJudge with an async version that posts to the API
   const handleAssignJudge = async (teamInternalId: string, judgeId: string) => {
     // Find team and judge to resolve required payload fields
+    // console.log(teamInternalId,judgeId);
     const team = teams.find((t) => t._id === teamInternalId);
-    console.log(teams)
-    const judge = users.find((u) => u.id === judgeId);
+    // console.log(teams)
+    const judge = users.find((u) => u.name === judgeId);
+
+    console.log(team, judge);
+
     if (!team || !judge) return;
 
     // Build payload using team.teamId if available, fallback to internal id
     const payload = {
       teamId: team.teamId || team._id,
-      judgeEmail: judge.name, 
+      judgeEmail: judge.name,
     };
 
     // Optimistically update UI
     const prevTeams = teams;
 
     setTeams((ts) =>
-      ts.map((t) =>   
+      ts.map((t) =>
         t._id === teamInternalId
           ? { ...t, assignedJudgeId: judgeId, updatedAt: new Date() }
           : t
@@ -297,10 +314,21 @@ export function AdminDashboard() {
             hackathon submissions.
           </p>
         </div>
-        <Button onClick={() => setShowAddUser(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Add Judge
-        </Button>
+        <div>
+          <Button
+            className="mx-2"
+            onClick={() => {
+              window.location.href = "/RunAssignments";
+            }}
+          >
+            <Plus className="mx-2 h-4 w-4" />
+            Run Assignment
+          </Button>
+          <Button onClick={() => setShowAddUser(true)}>
+            <UserPlus className="mx-2 h-4 w-4" />
+            Add Judge
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -462,18 +490,6 @@ export function AdminDashboard() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium">{team.teamName}</p>
-                            {/* NEW: show assigned judge badge */}
-                            {assignedJudge ? (
-                              <Badge variant="secondary">
-                                Judge: {assignedJudge.name}
-                              </Badge>
-                            ) : (team as any).assignedJudgeEmail ? (
-                              <Badge variant="secondary">
-                                Judge: {(team as any).assignedJudgeEmail}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">Unassigned</Badge>
-                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">
                             ID: {team.teamId}
@@ -517,9 +533,15 @@ export function AdminDashboard() {
                               variant="outline"
                               size="sm"
                               disabled={!videoUrl}
-                              onClick={() => videoUrl && setVideoPreviewUrl(videoUrl)}
+                              onClick={() =>
+                                videoUrl && setVideoPreviewUrl(videoUrl)
+                              }
                               aria-label="Open Round 2 Video preview"
-                              title={videoUrl ? "Round 2 — Please evaluate this solution" : "No video available"}
+                              title={
+                                videoUrl
+                                  ? "Round 2 — Please evaluate this solution"
+                                  : "No video available"
+                              }
                             >
                               <PlayCircle className="h-4 w-4" />
                             </Button>
@@ -527,7 +549,7 @@ export function AdminDashboard() {
                         </div>
                         <div className="flex flex-col gap-2 min-w-[200px]">
                           <Select
-                            value={team.assignedJudgeId || ""}
+                            value={team.assignedJudgeId || ""} // this is the judge email
                             onValueChange={(value) =>
                               handleAssignJudge(team._id, value)
                             }
@@ -535,11 +557,10 @@ export function AdminDashboard() {
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder="Assign Judge" />
                             </SelectTrigger>
-                            <SelectContent
-                              defaultValue={team.assignedJudgeId || ""}
-                            >
+
+                            <SelectContent>
                               {allJudges.map((judge) => (
-                                <SelectItem key={judge.id} value={judge.id}>
+                                <SelectItem key={judge.name} value={judge.name}>
                                   {judge.name}
                                 </SelectItem>
                               ))}
@@ -638,7 +659,7 @@ export function AdminDashboard() {
                           <p className="font-medium">{judge.name}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <Badge variant="outline">
-                              {assignedTeams.length} teams
+                              {judge.assignedTeams.length} teams
                             </Badge>
                             {approvedTeams > 0 && (
                               <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
@@ -655,6 +676,31 @@ export function AdminDashboard() {
                                 {rejectedTeams} rejected
                               </Badge>
                             )}
+                          </div>
+
+                          {/* Dropdown for team IDs */}
+                          <div className="mt-2">
+                            <Select>
+                              <SelectTrigger className="h-8 w-[200px] text-xs">
+                                <SelectValue placeholder="View assigned team IDs" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {judge.assignedTeams.length === 0 ? (
+                                  <SelectItem disabled value="none">
+                                    No teams assigned
+                                  </SelectItem>
+                                ) : (
+                                  judge.assignedTeams.map((t) => (
+                                    <SelectItem
+                                      key={t}
+                                      value={t}
+                                    >
+                                      {t.startsWith("PCCOE") ? t : "PCCOE"+t}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                       </div>

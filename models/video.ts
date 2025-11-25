@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const RubricItemSchema = new mongoose.Schema(
   {
@@ -33,63 +33,71 @@ const RubricItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
-const videoSchema = new mongoose.Schema({
-  teamId: {
-    type: String,
-    required: true,
-    index: true
-  },
-  teamName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  leaderEmail: {
-    type: String,
-    required: true,
-    lowercase: true,
-    trim: true
-  },
-  videoUrl: {
-    type: String,
-    required: true,
-    validate: {
-      validator: function(url: string) {
-        // Validate YouTube URL format
-        const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-        return youtubeRegex.test(url);
+const videoSchema = new mongoose.Schema(
+  {
+    teamId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    teamName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    leaderEmail: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+    },
+    videoUrl: {
+      type: String,
+      required: true,
+      validate: {
+        validator: function (url: string) {
+          // Validate YouTube URL format
+          const youtubeRegex =
+            /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+          return youtubeRegex.test(url);
+        },
+        message: "Please provide a valid YouTube URL",
       },
-      message: 'Please provide a valid YouTube URL'
-    }
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    // Evaluation fields
+    rubrics: {
+      type: [RubricItemSchema],
+      default: [],
+    },
+    finalScore: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    status: {
+      type: String,
+      enum: ["Approved", "Reject", "Can be thought", "Pending"],
+      default: "Pending",
+      index: true,
+    },
+    assignedJudge: {
+      type: String,
+      trim: true,
+      default: null,
+    },
   },
-  submittedAt: {
-    type: Date,
-    default: Date.now
-  },
-  // Evaluation fields
-  rubrics: {
-    type: [RubricItemSchema],
-    default: [],
-  },
-  finalScore: {
-    type: Number,
-    min: 0,
-    default: null,
-  },
-  status: {
-    type: String,
-    enum: ['Approved', 'Reject', 'Can be thought', 'Pending'],
-    default: 'Pending',
-    index: true,
+  {
+    timestamps: true,
   }
-}, {
-  timestamps: true
-});
+);
 
 videoSchema.index({ teamId: 1 }, { unique: true });
 
 // Reuse existing compiled model if present (prevents OverwriteModelError)
-const Video = mongoose.models.Videos || mongoose.model('Videos', videoSchema);
+const Video = mongoose.models.Videos || mongoose.model("Videos", videoSchema);
 
 export default Video;
-

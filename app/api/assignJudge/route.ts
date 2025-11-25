@@ -1,63 +1,81 @@
 import { NextResponse } from "next/server"
 import mongoose from "mongoose"
 import User from "@/models/user"
-import Video from "@/models/video" // add import
-
-async function connectToDB() {
-  if (mongoose.connection.readyState === 1) return
-  const uri = process.env.MONGODB_URI || process.env.NEXT_PUBLIC_MONGODB_URI
-  if (!uri) throw new Error("MONGODB_URI is not set")
-  await mongoose.connect(uri)
-}
+import Video from "@/models/video"
+import connectToDB from "@/lib/database";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}))
     const teamId = String(body?.teamId ?? "").trim()
+    const teamId2 = String(body?.teamId ?? "").split("PCCOE")[1].trim();
+    console.log(teamId2);
     const judgeEmail = String(body?.judgeEmail ?? "").trim()
     const judgeEmailLower = judgeEmail.toLowerCase()
 
+    // console.log("Assigning judge:", judgeEmailLower, "to team:", teamId);
+
     if (!teamId || !judgeEmail) {
-      return NextResponse.json({ success: false, error: "teamId and judgeEmail are required" }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "teamId and judgeEmail are required" },
+        { status: 400 }
+      )
     }
 
     await connectToDB()
 
+    // ------------------------------------------
+    // 1️⃣ USER UPDATE BASED ON TEAM ID
+    // ------------------------------------------
     await User.updateMany(
-      { role: "judge", assignedTeams: teamId, username: { $ne: judgeEmail } },
+      {
+        role: "judge",
+        assignedTeams: teamId,
+        username: { $ne: judgeEmailLower },
+      },
       { $pull: { assignedTeams: teamId } }
     )
 
     const judge = await User.findOneAndUpdate(
-      { role: "judge", username: judgeEmail },
+      { role: "judge", username: judgeEmailLower },
       { $addToSet: { assignedTeams: teamId } },
       { new: true, projection: { username: 1, role: 1, assignedTeams: 1 } }
     ).lean()
 
     if (!judge) {
-      return NextResponse.json({ success: false, error: "Judge not found" }, { status: 404 })
+      return NextResponse.json(
+        { success: false, error: "Judge not found" },
+        { status: 404 }
+      )
     }
 
-    // Also persist on the Video document if it exists for this team
-    const videoUpdate = await Video.updateOne(
-      { teamId },
-      { $set: { assignedJudge: judgeEmailLower } }
-    )
+    // ------------------------------------------
+    // 2️⃣ VIDEO UPDATE BASED ON teamId
+    // ------------------------------------------
+    const videoUpdate = await Video.findOneAndUpdate(
+        { $or:[{teamId:teamId}, {teamId:teamId2}] },
+        { $set: { assignedJudge: judgeEmailLower } },
+        { new: true }
+      )
+
+      console.log("Video updated:", videoUpdate !== null);
 
     return NextResponse.json(
       {
         success: true,
         assignment: {
           teamId,
-          judgeEmail,
-          judgeId: String(judgeEmail), 
+          judgeEmail: judgeEmailLower,
           assignedAt: new Date().toISOString(),
-          videoUpdated: videoUpdate.matchedCount > 0,
+          videoUpdated: Boolean(videoUpdate),
         },
       },
       { status: 200 }
     )
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || "Unexpected error" }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: err?.message || "Unexpected error" },
+      { status: 500 }
+    )
   }
 }
