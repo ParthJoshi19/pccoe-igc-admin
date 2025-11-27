@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { CheckCircle, Clock, XCircle, Eye, ExternalLink, Video, Calendar, User, FileText, Star, Loader2 as Loader } from "lucide-react"
 import {  type Team } from "@/lib/auth"
+import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 
 interface TeamEvaluation {
@@ -40,10 +41,11 @@ interface RubricItem {
 
 // Seed defaults for marking breakdown
 const defaultRubrics: RubricItem[] = [
-  { criterion: "Innovation", score: 0, maxScore: 10, comments: "" },
-  { criterion: "Execution", score: 0, maxScore: 10, comments: "" },
-  { criterion: "Impact", score: 0, maxScore: 10, comments: "" },
-  { criterion: "Presentation", score: 0, maxScore: 10, comments: "" },
+  { criterion: "Implementation progress", score: 0, maxScore: 10, comments: "" },
+  { criterion: "Technical soundness", score: 0, maxScore: 25, comments: "" },
+  { criterion: "Creativity in solution", score: 0, maxScore: 30, comments: "" },
+  { criterion: "Usability & relevance", score: 0, maxScore: 25, comments: "" },
+  { criterion: "Video clarity and communication", score: 0, maxScore: 10, comments: "" },
 ]
 
 // Helpers to compute totals and normalized rating (0-5)
@@ -63,6 +65,7 @@ function computeRatingFromRubrics(items: RubricItem[]) {
 
 export function JudgeDashboard() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [teams, setTeams] = useState<Team[]>([])
   const [evaluations, setEvaluations] = useState<TeamEvaluation[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
@@ -76,6 +79,21 @@ export function JudgeDashboard() {
   const [currentRubrics, setCurrentRubrics] = useState<RubricItem[]>([])
   // Add simple downloading state for PPT download
   const [downloading, setDownloading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [initialSnapshot, setInitialSnapshot] = useState<string>("")
+
+  const makeSnapshot = (ev: TeamEvaluation, rubrics: RubricItem[]) =>
+    JSON.stringify({
+      status: ev.status,
+      feedback: ev.feedback,
+      rating: ev.rating,
+      rubrics: (rubrics || []).map((r) => ({
+        criterion: r.criterion,
+        score: r.score,
+        maxScore: r.maxScore,
+        comments: r.comments || "",
+      })),
+    })
 
 
   useEffect(() => {
@@ -99,7 +117,7 @@ export function JudgeDashboard() {
         const derived: TeamEvaluation[] = (data as any[]).map((t) => {
           const latestRubric = Array.isArray(t.rubrics) && t.rubrics.length > 0 ? t.rubrics[t.rubrics.length - 1] : null
           return {
-            teamId: t._id,
+            teamId: t.teamId,
             status: (t.status as TeamEvaluation["status"]) || "Pending",
             feedback: latestRubric?.comments || "",
             rating: typeof t.finalScore === "number" ? t.finalScore : 0,
@@ -290,76 +308,87 @@ export function JudgeDashboard() {
   }
 
   const handleStartEvaluation = (team: Team) => {
-    const existingEvaluation = getTeamEvaluation(team._id)
-    // Initialize rubrics from team if exist; else defaults
-    const existingRubrics: RubricItem[] =
-      ((team as any)?.rubrics as RubricItem[]) && Array.isArray((team as any)?.rubrics)
-        ? ((team as any)?.rubrics as RubricItem[]).map((r) => ({
-            criterion: r.criterion || "Criterion",
-            score: Number(r.score || 0),
-            maxScore: Math.max(1, Number(r.maxScore || 10)),
-            comments: r.comments || "",
-            judge: r.judge,
-            evaluatedAt: r.evaluatedAt ? new Date(r.evaluatedAt) : undefined,
-          }))
-        : defaultRubrics
+    const existingEvaluation = getTeamEvaluation(team.teamId)
+    // Initialize rubrics from team if exist (non-empty); else defaults
+    const hasRubrics =
+      Array.isArray((team as any)?.rubrics) && ((team as any)?.rubrics as RubricItem[]).length > 0
+    const existingRubrics: RubricItem[] = hasRubrics
+      ? ((team as any)?.rubrics as RubricItem[]).map((r) => ({
+          criterion: r.criterion || "Criterion",
+          score: Number(r.score || 0),
+          maxScore: Math.max(1, Number(r.maxScore || 10)),
+          comments: r.comments || "",
+          judge: r.judge,
+          evaluatedAt: r.evaluatedAt ? new Date(r.evaluatedAt) : undefined,
+        }))
+      : defaultRubrics.map((r) => ({ ...r }))
 
     const initialRating =
       existingEvaluation?.rating && existingEvaluation.rating > 0
         ? existingEvaluation.rating
         : computeRatingFromRubrics(existingRubrics)
 
-    setCurrentEvaluation(
+    const initEval: TeamEvaluation =
       existingEvaluation || {
-        teamId: team._id,
+        teamId: team.teamId,
         status: "Pending",
         feedback: "",
         rating: initialRating,
-      },
-    )
+      }
+    setCurrentEvaluation(initEval)
     setCurrentRubrics(existingRubrics)
     setSelectedTeam(team)
+    setInitialSnapshot(makeSnapshot(initEval, existingRubrics))
     setEvaluationDialog(true)
   }
 
   const handleSaveEvaluation = async () => {
     if (!selectedTeam) return
     try {
+      setSaving(true)
+
       // Compute final score from rubrics if any; fallback to star rating
       const finalFromRubrics = computeRatingFromRubrics(currentRubrics)
       const finalScore = currentRubrics.length > 0 ? finalFromRubrics : currentEvaluation.rating
 
-      // Persist to backend
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/evaluate`, {
+      const payload = {
+        teamId: selectedTeam.teamId,
+        status: currentEvaluation.status,
+        finalScore,
+        feedback: currentEvaluation.feedback,
+        rubrics:
+          currentRubrics.length > 0
+            ? currentRubrics.map((r) => ({
+                ...r,
+                criterion: r.criterion || "Criterion",
+                score: Math.max(0, Number(r.score || 0)),
+                maxScore: Math.max(1, Number(r.maxScore || 10)),
+                comments: r.comments || "",
+                judge: r.judge || currentJudgeId(),
+              }))
+            : [
+                {
+                  criterion: "Overall",
+                  score: currentEvaluation.rating,
+                  maxScore: 5,
+                  comments: currentEvaluation.feedback,
+                  judge: currentJudgeId(),
+                },
+              ],
+      }
+
+      const res = await fetch(`/api/saveEvaluation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId: selectedTeam.teamId,
-          status: currentEvaluation.status,
-          finalScore,
-          rubrics:
-            currentRubrics.length > 0
-              ? currentRubrics.map((r) => ({
-                  ...r,
-                  criterion: r.criterion || "Criterion",
-                  score: Math.max(0, Number(r.score || 0)),
-                  maxScore: Math.max(1, Number(r.maxScore || 10)),
-                  comments: r.comments || "",
-                  judge: r.judge || currentJudgeId(),
-                }))
-              : [
-                  {
-                    criterion: "Overall",
-                    score: currentEvaluation.rating,
-                    maxScore: 5,
-                    comments: currentEvaluation.feedback,
-                    judge: currentJudgeId(),
-                  },
-                ],
-        }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error("Failed to save evaluation")
       const { data } = await res.json()
+
+      toast({
+        title: "Evaluation saved",
+        description: `Saved review for ${selectedTeam.teamName}`,
+      })
 
       // Update local evaluations view
       const updatedEvaluations = evaluations.filter((e) => e.teamId !== currentEvaluation.teamId)
@@ -385,8 +414,15 @@ export function JudgeDashboard() {
       setEvaluationDialog(false)
       setSelectedTeam(null)
     } catch {
+      toast({
+        title: "Save failed",
+        description: "Could not save evaluation. Please try again.",
+        variant: "destructive" as any,
+      })
       setEvaluationDialog(false)
       setSelectedTeam(null)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -490,7 +526,7 @@ export function JudgeDashboard() {
           ) : (
             <div className="space-y-4">
               {teams && teams.map((team) => {
-                const evaluation = getTeamEvaluation(team._id)
+                const evaluation = getTeamEvaluation(team.teamId)
                 const status = evaluation?.status || "Pending"
 
                 return (
@@ -514,7 +550,7 @@ export function JudgeDashboard() {
                           </div>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">{team.leaderEmail}</p>
-                        {evaluation && <div className="mt-2">{renderStarRating(evaluation.rating)}</div>}
+                        {/* {evaluation && <div className="mt-2">{renderStarRating(evaluation.rating)}</div>} */}
                         {/* Marking breakdown preview */}
                         {(team as any)?.rubrics?.length ? (
                           <div className="mt-2">
@@ -623,6 +659,7 @@ export function JudgeDashboard() {
                       <input
                         type="number"
                         min={0}
+                        max={item.maxScore}
                         className="col-span-2 px-2 py-1 border rounded bg-background"
                         value={item.score}
                         onChange={(e) => {
@@ -693,18 +730,7 @@ export function JudgeDashboard() {
 
               {/* Overall rating and decision */}
               <div className="space-y-4">
-                <div>
-                  <Label htmlFor="rating">Overall Rating</Label>
-                  <div className="mt-2">
-                    {renderStarRating(currentEvaluation.rating, (rating) =>
-                      setCurrentEvaluation({ ...currentEvaluation, rating }),
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Stars reflect the breakdown above and can be adjusted if needed.
-                  </p>
-                </div>
-
+                
                 <div>
                   <Label htmlFor="status">Decision</Label>
                   <Select
@@ -738,13 +764,27 @@ export function JudgeDashboard() {
               </div>
             </div>
           )}
-        </DialogContent>
         <DialogFooter>
           <Button variant="outline" onClick={() => setEvaluationDialog(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSaveEvaluation}>Save Evaluation</Button>
+          <Button
+            onClick={handleSaveEvaluation}
+            disabled={saving || (initialSnapshot === makeSnapshot(currentEvaluation, currentRubrics))}
+          >
+            {saving ? (
+              <>
+                <Loader className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Evaluation"
+            )}
+          </Button>
         </DialogFooter>
+        </DialogContent>
+
+        {/* Move actions into the modal */}
       </Dialog>
     </div>
   )

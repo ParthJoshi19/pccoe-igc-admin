@@ -42,6 +42,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useRouter } from "next/router";
+import { ru } from "date-fns/locale";
 
 export function AdminDashboard() {
   const { user } = useAuth();
@@ -56,8 +57,8 @@ export function AdminDashboard() {
 
   const [pptPreviewUrl, setPptPreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
-
-
+  // NEW: evaluation modal state
+  const [evalTeam, setEvalTeam] = useState<Team | null>(null);
 
   useEffect(() => {
     const getJudges = async () => {
@@ -135,6 +136,7 @@ export function AdminDashboard() {
             assignedJudgeEmail: apiTeam.assignedJudge,
             presentationPPT: apiTeam.presentationPPT,
             idCardsPDF: apiTeam.idCardsPDF,
+            rubrics: apiTeam.Rubrics,
             instituteNOC: apiTeam.instituteNOC,
           }));
           setTeams(mappedTeams);
@@ -182,6 +184,7 @@ export function AdminDashboard() {
                 ? String(apiTeam.assignedJudgeId)
                 : undefined,
               assignedJudgeEmail: apiTeam.assignedJudgeEmail,
+              rubrics: apiTeam.Rubrics,
             };
             return item as Team;
           });
@@ -203,7 +206,10 @@ export function AdminDashboard() {
       getJudges();
       getTeams();
     }
+    // console.log(teams);
   }, [user?.token, user?.id, page, limit]);
+
+  // console.log("Teams:", teams);
 
   const managedJudges = users.filter(
     (u) => u.role === "judge" && canManageUser(user!, u)
@@ -282,6 +288,36 @@ export function AdminDashboard() {
       setTeams(prevTeams);
       console.error("Error assigning judge:", err);
     }
+  };
+
+  // NEW: Helpers to normalize and summarize rubrics
+  type NormRubric = { label: string; score: number; max: number; comment?: string };
+  const normalizeRubrics = (t: any): NormRubric[] => {
+    const raw = t?.rubrics ?? t?.Rubrics ?? [];
+    const toList = (x: any): any[] =>
+      Array.isArray(x)
+        ? x
+        : x && typeof x === "object"
+        ? Object.values(x).flatMap((v: any) => (Array.isArray(v) ? v : typeof v === "object" ? [v] : []))
+        : [];
+    const list = toList(raw);
+    return list.map((r: any) => ({
+      label: r?.criterion ?? r?.criteria ?? r?.name ?? r?.title ?? "Criteria",
+      score: Number(r?.score ?? r?.points ?? r?.value ?? r?.marks ?? r?.obtained ?? 0),
+      max: Number(r?.max ?? r?.outOf ?? r?.maxScore ?? r?.weight ?? r?.total ?? r?.maximum ?? 0),
+      comment: r?.comment ?? r?.notes ?? r?.remark,
+    }));
+  };
+  const getRubricTotals = (items: NormRubric[]) => ({
+    total: items.reduce((a, b) => a + (Number.isFinite(b.score) ? b.score : 0), 0),
+    max: items.reduce((a, b) => a + (Number.isFinite(b.max) ? b.max : 0), 0),
+  });
+  const isEvaluated = (t: any) => {
+    const items = normalizeRubrics(t);
+    if (!items.length) return false;
+    const anyScore = items.some((i) => (i.score ?? 0) > 0);
+    const anyComment = items.some((i) => (i.comment && String(i.comment).trim().length > 0));
+    return anyScore || anyComment;
   };
 
   const getStatusColor = (status: string) => {
@@ -481,6 +517,10 @@ export function AdminDashboard() {
                   const assignedJudge = users.find(
                     (u) => u.id === team.assignedJudgeId
                   );
+                  const evaluated = isEvaluated(team);
+                  const rubricsNorm = normalizeRubrics(team);
+                  const totals = getRubricTotals(rubricsNorm);
+
                   return (
                     <div
                       key={team._id}
@@ -490,6 +530,15 @@ export function AdminDashboard() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium">{team.teamName}</p>
+                            {/* NEW: Evaluation badge */}
+                            <Badge className={evaluated ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"}>
+                              {evaluated ? "Evaluated" : "Unevaluated"}
+                            </Badge>
+                            {evaluated && totals.max > 0 && (
+                              <span className="text-xs text-muted-foreground ml-1">
+                                {totals.total}/{totals.max}
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">
                             ID: {team.teamId}
@@ -569,28 +618,16 @@ export function AdminDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-4">
-                        {/* {pptUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.open(`https://docs.google.com/gview?url=${encodeURIComponent(pptUrl)}&embedded=true`, "_blank", "noopener,noreferrer")}
-                            aria-label="Preview PPT (Round 1)"
-                            title="Preview PPT (Round 1) — Please evaluate the PPT"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {videoUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.open(videoUrl, "_blank", "noopener,noreferrer")}
-                            aria-label="View Video"
-                            title="View Video"
-                          >
-                            <PlayCircle className="h-4 w-4" />
-                          </Button>
-                        )} */}
+                        {/* NEW: View Evaluation button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEvalTeam(team)}
+                          title="View Evaluation"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                        {/* ...existing code... */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -875,6 +912,38 @@ export function AdminDashboard() {
                               })()}
                             </p>
                           </div>
+                          {/* NEW: Evaluation summary inside details */}
+                          {(() => {
+                            const items = normalizeRubrics(t);
+                            const totals = getRubricTotals(items);
+                            const evaluated = isEvaluated(t);
+                            return (
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground">
+                                    Evaluation
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <Badge className={evaluated ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"}>
+                                      {evaluated ? "Evaluated" : "Unevaluated"}
+                                    </Badge>
+                                    {evaluated && totals.max > 0 && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {totals.total}/{totals.max}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setEvalTeam(selectedTeam)}
+                                >
+                                  View
+                                </Button>
+                              </div>
+                            );
+                          })()}
                         </CardContent>
                       </Card>
 
@@ -1193,6 +1262,71 @@ export function AdminDashboard() {
                   controls
                   className="w-full h-auto max-h-[70vh] rounded-lg border bg-black"
                 />
+              );
+            })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* NEW: Evaluation Dialog */}
+      <Dialog
+        open={!!evalTeam}
+        onOpenChange={(open) => {
+          if (!open) setEvalTeam(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>Evaluation</DialogTitle>
+            <DialogDescription>
+              Review the rubrics and total score.
+            </DialogDescription>
+          </DialogHeader>
+          {evalTeam &&
+            (() => {
+              const t: any = evalTeam as any;
+              const items = normalizeRubrics(t);
+              const { total, max } = getRubricTotals(items);
+              const evaluated = isEvaluated(t);
+
+              if (!items.length) {
+                return (
+                  <div className="text-sm text-muted-foreground">
+                    No evaluation available.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Badge className={evaluated ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"}>
+                      {evaluated ? "Evaluated" : "Unevaluated"}
+                    </Badge>
+                    {max > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        Total: {total}/{max}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {items.map((r, idx) => (
+                      <div key={idx} className="flex items-start justify-between border rounded-md p-3">
+                        <div className="pr-4">
+                          <p className="text-sm font-medium">{r.label}</p>
+                          {r.comment && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {r.comment}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-sm font-mono whitespace-nowrap">
+                          {r.score} / {r.max > 0 ? r.max : "-"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               );
             })()}
         </DialogContent>
