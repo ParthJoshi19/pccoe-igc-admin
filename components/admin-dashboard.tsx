@@ -54,6 +54,8 @@ export function AdminDashboard() {
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
   const [loadingTeams, setLoadingTeams] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const [pptPreviewUrl, setPptPreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -204,10 +206,90 @@ export function AdminDashboard() {
 
     if (user?.token) {
       getJudges();
-      getTeams();
+      // Only fetch paginated teams when no active search
+      if (!searchQuery.trim()) {
+        getTeams();
+      }
     }
     // console.log(teams);
-  }, [user?.token, user?.id, page, limit]);
+  }, [user?.token, user?.id, page, limit, searchQuery]);
+
+  // Debounced team search hitting /api/searchTeams
+  useEffect(() => {
+    let t: any;
+    const run = async () => {
+      const q = searchQuery.trim();
+      if (!user?.token) return;
+      if (!q) return; // handled by getTeams above
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`/api/searchTeams`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: q }),
+        });
+        const data = await res.json();
+        if (Array.isArray(data?.teams) || Array.isArray(data?.data)) {
+          const src = Array.isArray(data?.teams) ? data.teams : data.data;
+          const mappedTeams: Team[] = src.map((apiTeam: any) => ({
+            _id:
+              apiTeam.id ||
+              apiTeam.registrationNumber ||
+              apiTeam._id ||
+              String(apiTeam.teamId || apiTeam.id || Math.random()),
+            teamName: apiTeam.teamName,
+            teamId: apiTeam.registrationNumber ?? apiTeam.teamId,
+            leaderEmail: apiTeam.leaderEmail,
+            leaderName: apiTeam.leaderName ?? "",
+            institution: apiTeam.institution,
+            program: apiTeam.program ?? "",
+            members: apiTeam.members ?? [],
+            mentorName: apiTeam.mentorName ?? "",
+            mentorEmail: apiTeam.mentorEmail ?? "",
+            topicName: apiTeam.topicName ?? "",
+            topicDescription: apiTeam.topicDescription ?? "",
+            track: apiTeam.track,
+            status:
+              (apiTeam.registrationStatus as "pending" | "approved" | "rejected") ??
+              "approved",
+            submittedAt: new Date(apiTeam.submittedAt ?? Date.now()),
+            updatedAt: new Date(apiTeam.updatedAt ?? apiTeam.submittedAt ?? Date.now()),
+            presentationPPT:
+              apiTeam.presentationPPT ??
+              (apiTeam.pptUrl ? { fileUrl: apiTeam.pptUrl } : undefined),
+            video: apiTeam.video?.fileUrl
+              ? apiTeam.video
+              : apiTeam.video?.videoUrl
+              ? { fileUrl: apiTeam.video.videoUrl }
+              : undefined,
+            videoUrl: apiTeam.video?.videoLink ?? apiTeam.videoLink,
+            pptUrl: apiTeam.pptUrl,
+            assignedJudgeId: apiTeam.assignedJudgeId
+              ? String(apiTeam.assignedJudgeId)
+              : undefined,
+            assignedJudgeEmail: apiTeam.assignedJudgeEmail,
+            rubrics: apiTeam.Rubrics,
+            instituteNOC: apiTeam.instituteNOC,
+            idCardsPDF: apiTeam.idCardsPDF,
+          }));
+          setTeams(mappedTeams);
+          setTotal(mappedTeams.length);
+          setPage(1);
+        } else {
+          // if API returns single item or different shape, clear to no results
+          setTeams([]);
+          setTotal(0);
+        }
+      } catch (err) {
+        console.error("Search teams failed:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+    // debounce 400ms
+    t = setTimeout(run, 400);
+    return () => clearTimeout(t);
+  }, [searchQuery, user?.token]);
 
   // console.log("Teams:", teams);
 
@@ -441,6 +523,33 @@ export function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="flex items-center gap-3 mb-4">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    // reset pagination when searching
+                    setPage(1);
+                  }}
+                  placeholder="Search teams by name or ID"
+                  className="w-full md:w-1/2 h-9 px-3 rounded-md border bg-background"
+                />
+                {searchLoading && (
+                  <span className="text-xs text-muted-foreground">Searching…</span>
+                )}
+                {!!searchQuery && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
               <div className="flex items-center justify-between mb-4">
                 <div className="text-sm text-muted-foreground">
                   {totalTeamsCount > 0
