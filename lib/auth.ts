@@ -52,7 +52,7 @@ export async function authenticateUser(
     const data=await res.json();
     data.user.role=data.user.role==="admin"?"admin":"judge";
     data.user.token=data.token;
-    console.log(data);
+    // console.log(data);
     return data.user;
   } catch(e) {
     console.log(e);
