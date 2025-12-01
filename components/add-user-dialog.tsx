@@ -15,8 +15,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { User, UserRole } from "@/lib/auth"
+import type { User,UserRole } from "@/lib/auth"
 import { useAuth } from "@/contexts/auth-context"
+import { get } from "http"
 
 interface AddUserDialogProps {
   open: boolean
@@ -29,35 +30,72 @@ export function AddUserDialog({ open, onOpenChange, onAddUser, currentUserId }: 
   const { user: currentUser } = useAuth()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [organization, setOrganization] = useState("")
   const [role, setRole] = useState<UserRole>("judge")
+  const [submitting, setSubmitting] = useState(false)
 
   const getAvailableRoles = (): UserRole[] => {
-    if (currentUser?.role === "manager") {
-      return ["admin", "judge"]
-    } else if (currentUser?.role === "admin") {
+    if (currentUser?.role === "admin") {
       return ["judge"]
     }
     return []
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  function generateStrongPassword() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+  let password = "";
+  for (let i = 0; i < 8; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (role !== "judge") return
 
-    const newUser: User = {
-      id: Date.now().toString(),
-      name,
-      email,
-      role,
-      createdAt: new Date(),
-      managerId: currentUserId,
+    setSubmitting(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/judges/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" ,"Authorization":`Bearer ${currentUser?.token}`},
+        body: JSON.stringify({
+          Username: email,
+          Email: email,
+          Password: generateStrongPassword(),
+          Organization: organization,
+          Role: "judge",
+        }),
+      })
+
+      if (!res.ok) throw new Error("Failed to create judge")
+
+      const created = await res.json()
+      const newUser: User = {
+        id: created.id ?? Date.now().toString(),
+        name: created.name ?? name,
+        email: created.email ?? email,
+        role: "judge",
+        organization: created.organization ?? "",
+        createdAt: created.createdAt ? new Date(created.createdAt) : new Date(),
+        assignedTeams: created.assignedTeams ?? [],
+        token: created.token ?? "",
+      }
+
+      onAddUser(newUser)
+      onOpenChange(false)
+
+      // Reset form
+      setName("")
+      setEmail("")
+      setOrganization("")
+      setRole("judge")
+    } catch (err) {
+      // Optionally handle error UI
+      console.error(err)
+    } finally {
+      setSubmitting(false)
     }
-
-    onAddUser(newUser)
-
-    // Reset form
-    setName("")
-    setEmail("")
-    setRole("judge")
   }
 
   const availableRoles = getAvailableRoles()
@@ -67,11 +105,11 @@ export function AddUserDialog({ open, onOpenChange, onAddUser, currentUserId }: 
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New User</DialogTitle>
-          <DialogDescription>
-            {currentUser?.role === "manager"
-              ? "Create a new admin or judge account. They will be assigned to you as their manager."
-              : "Create a new judge account. They will be assigned to you for management."}
-          </DialogDescription>
+            <DialogDescription>
+              {currentUser?.role === "admin"
+                ? "Create a new admin or judge account. They will be assigned to you as their manager."
+                : "Create a new judge account. They will be assigned to you for management."}
+            </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
@@ -92,6 +130,18 @@ export function AddUserDialog({ open, onOpenChange, onAddUser, currentUserId }: 
                 onChange={(e) => setEmail(e.target.value)}
                 className="col-span-3"
                 required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="organization" className="text-right">
+                Organization
+              </Label>
+              <Input
+                id="organization"
+                value={organization}
+                onChange={(e) => setOrganization(e.target.value)}
+                className="col-span-3"
+                placeholder="Optional"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -116,7 +166,7 @@ export function AddUserDialog({ open, onOpenChange, onAddUser, currentUserId }: 
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">Add User</Button>
+            <Button type="submit" disabled={submitting}>{submitting ? "Adding..." : "Add User"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

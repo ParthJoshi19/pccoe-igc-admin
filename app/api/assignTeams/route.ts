@@ -49,7 +49,6 @@ export async function POST(request: Request) {
       const assignments: { teamId: string; judge: string }[] = [];
       const skipped: string[] = [];
 
-      // Helper to get next judge with least load
       const pickJudge = () => {
         let candidate: { username: string; count: number } | null = null;
         for (const j of judges) {

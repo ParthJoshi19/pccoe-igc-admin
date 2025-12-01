@@ -227,8 +227,13 @@ export function AdminDashboard() {
     setUsers(users.filter((u) => u.id !== userId));
   };
 
-  const handleAddUser = (newUser: User) => {
+  const handleAddUser = async(newUser: User) => {
     setUsers([...users, newUser]);
+    const res=await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/notifyNewJudge`,{
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newUser),
+    });
     setShowAddUser(false);
   };
 

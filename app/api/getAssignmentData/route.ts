@@ -34,7 +34,6 @@ export async function GET() {
 			0
 		);
 
-		// Judges with how many teams currently assigned and how many videos
 		const judges = await User.find({ role: "judge" })
 			.select({ username: 1, assignedTeams: 1, createdAt: 1 })
 			.sort({ createdAt: 1 })

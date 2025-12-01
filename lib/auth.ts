@@ -5,8 +5,11 @@ export type UserRole =  "admin" | "judge";
 export interface User {
   id: string;
   name: string;
+  email: string;
+  organization?: string;
   role: UserRole;
   token:string
+  createdAt: Date;
   assignedTeams: string[];
 }
 
@@ -47,7 +50,7 @@ export async function authenticateUser(
       return null;
     }
     const data=await res.json();
-    data.user.role=data.user.username==="admin"?"admin":"judge";
+    data.user.role=data.user.role==="admin"?"admin":"judge";
     data.user.token=data.token;
     console.log(data);
     return data.user;
