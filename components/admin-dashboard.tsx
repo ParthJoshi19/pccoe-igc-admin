@@ -229,6 +229,7 @@ export function AdminDashboard() {
           body: JSON.stringify({ query: q }),
         });
         const data = await res.json();
+        console.log("Search results:", data);
         if (Array.isArray(data?.teams) || Array.isArray(data?.data)) {
           const src = Array.isArray(data?.teams) ? data.teams : data.data;
           const mappedTeams: Team[] = src.map((apiTeam: any) => ({
@@ -267,7 +268,7 @@ export function AdminDashboard() {
             assignedJudgeId: apiTeam.assignedJudgeId
               ? String(apiTeam.assignedJudgeId)
               : undefined,
-            assignedJudgeEmail: apiTeam.assignedJudgeEmail,
+            assignedJudge: apiTeam.assignedJudgeId,
             rubrics: apiTeam.Rubrics,
             instituteNOC: apiTeam.instituteNOC,
             idCardsPDF: apiTeam.idCardsPDF,

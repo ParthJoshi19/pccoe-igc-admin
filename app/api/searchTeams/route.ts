@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import connectToDB from '../../../lib/database'
 import TeamRegistration from '../../../models/Team.model'
 import Video from '../../../models/video'
+import User from '../../../models/user'
 
 export async function POST(request: NextRequest) {
 	try {
@@ -80,20 +81,35 @@ export async function POST(request: NextRequest) {
 
 		const videoMap = new Map<string, any>((videos as any[]).map((v) => [v.teamId, v]))
 
+		// Fetch judge display names by username (assignedJudge)
+		const judgeUsernames = Array.from(
+			new Set((videos as any[]).map((v) => v.assignedJudge).filter(Boolean))
+		)
+		const judges = judgeUsernames.length
+			? await User.find({ username: { $in: judgeUsernames } })
+					.select({ username: 1 })
+					.lean()
+			: []
+		const judgeNameMap = new Map<string, string>(
+			(judges as any[]).map((j) => [j.username, j.username])
+		)
+
 		const results = (docs as any[]).map((d) => {
 			const v = videoMap.get(d.registrationNumber)
+			const assignedJudge = v?.assignedJudge
+			const assignedJudgeName = assignedJudge ? judgeNameMap.get(assignedJudge) || assignedJudge : undefined
 			return {
 				...d,
 				pptUrl: d?.presentationPPT?.fileUrl,
 				videoUrl: v?.videoUrl,
-				assignedJudgeEmail: v?.assignedJudge,
+				assignedJudgeId: v?.assignedJudge,
 				video: v
 					? {
 							videoUrl: v.videoUrl,
 							status: v.status,
 							submittedAt: v.submittedAt,
 							finalScore: v.finalScore,
-							assignedJudge: v.assignedJudge,
+							assignedJudgeId: v.assignedJudge,
 						}
 					: undefined,
 			}
