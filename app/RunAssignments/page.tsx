@@ -75,11 +75,10 @@ export default function RunAssignmentsPage() {
     fetchData();
   }, []);
 
-  // compute empty slots based on limitPerJudge
   const judgesWithEmptySlots = useMemo(() => {
     return judges.map((j) => {
-      const limit = limitPerJudge; // global cap used by /api/assignTeams
-      const emptySlots = Math.max(limit - j.currentVideoAssignments, 0);
+      const limit = limitPerJudge; 
+      const emptySlots = Math.max(limit - j.currentAssignments  , 0);
       return { ...j, limitUsed: limit, emptySlots };
     });
   }, [limitPerJudge, judges]);
@@ -209,9 +208,6 @@ export default function RunAssignmentsPage() {
                     <TableCell>{j.name}</TableCell>
                     <TableCell className="text-right">
                       {j.currentAssignments}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {j.currentVideoAssignments}
                     </TableCell>
                     <TableCell className="text-right">
                       {j.limitUsed}

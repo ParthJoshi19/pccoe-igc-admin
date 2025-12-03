@@ -70,12 +70,21 @@ export async function GET(req: Request) {
     const videos = await Video.find(query).sort({ submittedAt: -1 }).lean();
 
     // Build a normalized set of team IDs from videos to fetch PPTs
-    const teamIds = (videos as any[])
+    // For each team, include both IGC<num> and PCCOEIGC<num> variants
+    const teamIdVariants = (videos as any[])
       .map((v) => String(v.teamId || "").trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .flatMap((id) => {
+        const num = id.replace(/\s+/g, "").replace(/\D/g, "");
+        if (!num) return [] as string[];
+        return [
+          `IGC${num}`,
+          `PCCOEIGC${num}`,
+        ];
+      });
 
-    const regs = teamIds.length > 0
-      ? await TeamRegistration.find({ registrationNumber: { $in: teamIds } })
+    const regs = teamIdVariants.length > 0
+      ? await TeamRegistration.find({ registrationNumber: { $in: teamIdVariants } })
           .select({ registrationNumber: 1, "presentationPPT.fileUrl": 1 })
           .lean()
       : [];
@@ -83,7 +92,11 @@ export async function GET(req: Request) {
     const pptMap = new Map<string, string | undefined>();
     for (const r of regs as any[]) {
       const regNum = String(r.registrationNumber || "").trim();
-      pptMap.set(regNum, r?.presentationPPT?.fileUrl);
+      const num = regNum.replace(/\s+/g, "").replace(/\D/g, "");
+      if (!num) continue;
+      // Map both variants to the same PPT URL
+      pptMap.set(`IGC${num}`, r?.presentationPPT?.fileUrl);
+      pptMap.set(`PCCOEIGC${num}`, r?.presentationPPT?.fileUrl);
     }
 
     const data = (videos as any[]).map((v) => {
@@ -99,7 +112,12 @@ export async function GET(req: Request) {
           v.createdAt instanceof Date ? v.createdAt.toISOString() : v.createdAt,
         updatedAt:
           v.updatedAt instanceof Date ? v.updatedAt.toISOString() : v.updatedAt,
-        pptUrl: pptMap.get(teamId),
+        // Prefer exact match; fallback by numeric variants
+        pptUrl: pptMap.get(teamId) ?? (() => {
+          const num = teamId.replace(/\s+/g, "").replace(/\D/g, "");
+          if (!num) return undefined;
+          return pptMap.get(`IGC${num}`) ?? pptMap.get(`PCCOEIGC${num}`);
+        })(),
       };
     });
     
