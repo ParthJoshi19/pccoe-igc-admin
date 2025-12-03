@@ -2,9 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
   import connectToDB from '../../../lib/database'
   import TeamRegistration from '../../../models/Team.model'
   import Video from '../../../models/video'
+  import { verifyToken } from '@/lib/auth'
 
   export async function POST(request: NextRequest) {
     try {
+      // Verify authentication
+      const authResult = await verifyToken(request)
+      if (!authResult.authenticated) {
+        return NextResponse.json(
+          { error: authResult.error || "Unauthenticated" },
+          { status: 401 }
+        )
+      }
+
       const body = await request.json()
       // const token: string | undefined = body?.token
       const pageRaw = body?.page

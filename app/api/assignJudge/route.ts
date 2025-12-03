@@ -2,10 +2,20 @@ import { NextResponse } from "next/server"
 import mongoose from "mongoose"
 import User from "@/models/user"
 import Video from "@/models/video"
-import connectToDB from "@/lib/database";
+import connectToDB from "@/lib/database"
+import { verifyToken } from "@/lib/auth"
 
 export async function POST(req: Request) {
   try {
+    // Verify authentication
+    const authResult = await verifyToken(req)
+    if (!authResult.authenticated) {
+      return NextResponse.json(
+        { success: false, error: authResult.error || "Unauthenticated" },
+        { status: 401 }
+      )
+    }
+
     const body = await req.json().catch(() => ({}))
     const teamId = String(body?.teamId ?? "").trim()
     const teamId2 = String(body?.teamId ?? "").split("PCCOE")[1].trim();

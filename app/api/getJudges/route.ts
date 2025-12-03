@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import connectToDB from '../../../lib/database'
 import User from '../../../models/user'
+import { verifyToken } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication
+    const authResult = await verifyToken(request)
+    if (!authResult.authenticated) {
+      return NextResponse.json(
+        { error: authResult.error || "Unauthenticated" },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const pageRaw = body?.page
     const limitRaw = body?.limit

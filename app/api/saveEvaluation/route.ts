@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import connectToDB from "@/lib/database"
 import Video from "@/models/video"
+import { verifyToken } from "@/lib/auth"
 
 type EvalStatus = "Approved" | "Reject" | "Can be thought" | "Pending"
 
@@ -15,6 +16,15 @@ interface RubricItem {
 
 export async function POST(req: Request) {
   try {
+    // Verify authentication
+    const authResult = await verifyToken(req)
+    if (!authResult.authenticated) {
+      return NextResponse.json(
+        { error: authResult.error || "Unauthenticated" },
+        { status: 401 }
+      )
+    }
+
     await connectToDB()
 
     const body = await req.json().catch(() => ({}))

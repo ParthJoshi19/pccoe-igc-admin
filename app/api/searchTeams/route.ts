@@ -3,9 +3,19 @@ import connectToDB from '../../../lib/database'
 import TeamRegistration from '../../../models/Team.model'
 import Video from '../../../models/video'
 import User from '../../../models/user'
+import { verifyToken } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
 	try {
+		// Verify authentication
+		const authResult = await verifyToken(request)
+		if (!authResult.authenticated) {
+			return NextResponse.json(
+				{ error: authResult.error || "Unauthenticated" },
+				{ status: 401 }
+			)
+		}
+
 		const body = await request.json()
 		const query: string = String(body?.query ?? '').trim()
 

@@ -4,9 +4,19 @@ import Video from "@/models/video";
 import User from "@/models/user";
 import mongoose from "mongoose";
 import TeamRegistration from "../../../models/Team.model";
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
+    // Verify authentication
+    const authResult = await verifyToken(req)
+    if (!authResult.authenticated) {
+      return NextResponse.json(
+        { error: authResult.error || "Unauthenticated" },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(req.url);
     const judgeRaw = searchParams.get("judge")?.trim();
 

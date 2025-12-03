@@ -81,3 +81,45 @@ export function canManageUser(managerUser: User, targetUser: User): boolean {
 export function canAccessProfile(currentUser: User, targetUser: User): boolean {
   return currentUser.id === targetUser.id;
 }
+
+// Verify JWT token from request headers
+export async function verifyToken(request: Request): Promise<{ authenticated: boolean; user?: any; error?: string }> {
+  try {
+    const authHeader = request.headers.get("Authorization");
+    
+    if (!authHeader) {
+      return { authenticated: false, error: "No authorization header provided" };
+    }
+
+    // Support both "Bearer <token>" and just "<token>"
+    const token = authHeader.startsWith("Bearer ") 
+      ? authHeader.substring(7) 
+      : authHeader;
+
+    if (!token) {
+      return { authenticated: false, error: "No token provided" };
+    }
+
+    // Verify token with backend
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/verify`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      }
+    );
+
+    if (!res.ok) {
+      return { authenticated: false, error: "Invalid or expired token" };
+    }
+
+    const data = await res.json();
+    return { authenticated: true, user: data.user };
+  } catch (error) {
+    console.error("Token verification error:", error);
+    return { authenticated: false, error: "Token verification failed" };
+  }
+}

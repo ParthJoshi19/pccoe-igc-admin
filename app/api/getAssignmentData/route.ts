@@ -2,16 +2,24 @@ import { NextResponse } from "next/server";
 import connectToDB from "@/lib/database";
 import User from "@/models/user";
 import Video from "@/models/video";
+import { verifyToken } from "@/lib/auth";
 
 // Returns summary needed by RunAssignments page:
 // - teams with unassigned videos count
 // - judges with current assignment count
 // - overall totals
-export async function GET() {
-	try {
-		await connectToDB();
+export async function GET(req: Request) {
+  try {
+    // Verify authentication
+    const authResult = await verifyToken(req)
+    if (!authResult.authenticated) {
+      return NextResponse.json(
+        { success: false, error: authResult.error || "Unauthenticated" },
+        { status: 401 }
+      )
+    }
 
-		// Unassigned videos are those with null/empty assignedJudge
+    await connectToDB();		// Unassigned videos are those with null/empty assignedJudge
 		const unassignedVideos = await Video.aggregate([
 			{
 				$match: {

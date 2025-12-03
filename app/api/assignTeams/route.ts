@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDB from "@/lib/database";
 import User from "@/models/user";
 import Video from "@/models/video";
+import { verifyToken } from "@/lib/auth";
 
 /**
  * POST /api/assignTeams
@@ -19,6 +20,15 @@ import Video from "@/models/video";
  */
 export async function POST(request: Request) {
   try {
+    // Verify authentication
+    const authResult = await verifyToken(request)
+    if (!authResult.authenticated) {
+      return NextResponse.json(
+        { success: false, error: authResult.error || "Unauthenticated" },
+        { status: 401 }
+      )
+    }
+
     await connectToDB();
 
     const { CAP } = await request.json();

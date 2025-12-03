@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import mongoose from "mongoose"
+import { verifyToken } from "@/lib/auth"
 
 type EvalStatus = "Approved" | "Reject" | "Can be thought" | "Pending"
 
@@ -84,6 +85,15 @@ const Video =
 
 export async function POST(req: Request) {
   try {
+    // Verify authentication
+    const authResult = await verifyToken(req)
+    if (!authResult.authenticated) {
+      return NextResponse.json(
+        { success: false, error: authResult.error || "Unauthenticated" },
+        { status: 401 }
+      )
+    }
+
     await dbConnect()
     const body = await req.json()
     const {
