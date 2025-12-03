@@ -121,6 +121,8 @@ export function JudgeDashboard() {
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState<string>("");
+  
+  const isFeedbackValid = (val: string) => String(val || "").trim().length > 0;
 
   const makeSnapshot = (ev: TeamEvaluation, rubrics: RubricItem[]) =>
     JSON.stringify({
@@ -423,6 +425,17 @@ export function JudgeDashboard() {
     if (!selectedTeam) return;
     try {
       setSaving(true);
+
+      // Require feedback to be non-empty
+      if (!isFeedbackValid(currentEvaluation.feedback)) {
+        toast({
+          title: "Feedback required",
+          description: "Please add feedback before saving your evaluation.",
+          variant: "destructive" as any,
+        });
+        setSaving(false);
+        return;
+      }
 
       // Compute final score from rubrics if any; fallback to star rating
       const finalFromRubrics = computeRatingFromRubrics(currentRubrics);
@@ -945,6 +958,8 @@ export function JudgeDashboard() {
                   <Textarea
                     id="feedback"
                     placeholder="Provide detailed feedback about the team's submission..."
+                    required
+                    aria-invalid={!isFeedbackValid(currentEvaluation.feedback)}
                     value={currentEvaluation.feedback}
                     onChange={(e) =>
                       setCurrentEvaluation({
@@ -954,6 +969,11 @@ export function JudgeDashboard() {
                     }
                     className="mt-2 min-h-[120px]"
                   />
+                  {!isFeedbackValid(currentEvaluation.feedback) && (
+                    <p className="mt-1 text-xs text-red-600">
+                      Feedback is required.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -969,6 +989,7 @@ export function JudgeDashboard() {
               onClick={handleSaveEvaluation}
               disabled={
                 saving ||
+                !isFeedbackValid(currentEvaluation.feedback) ||
                 initialSnapshot ===
                   makeSnapshot(currentEvaluation, currentRubrics)
               }
