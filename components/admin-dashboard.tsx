@@ -76,7 +76,6 @@ export function AdminDashboard() {
 
         console.log(data);
 
-        // Map API response to User format
         if (data.users && Array.isArray(data.users)) {
           const mappedUsers: User[] = data.users.map((apiUser: any) => ({
             id: apiUser.id,
@@ -251,10 +250,14 @@ export function AdminDashboard() {
             topicDescription: apiTeam.topicDescription ?? "",
             track: apiTeam.track,
             status:
-              (apiTeam.registrationStatus as "pending" | "approved" | "rejected") ??
-              "approved",
+              (apiTeam.registrationStatus as
+                | "pending"
+                | "approved"
+                | "rejected") ?? "approved",
             submittedAt: new Date(apiTeam.submittedAt ?? Date.now()),
-            updatedAt: new Date(apiTeam.updatedAt ?? apiTeam.submittedAt ?? Date.now()),
+            updatedAt: new Date(
+              apiTeam.updatedAt ?? apiTeam.submittedAt ?? Date.now()
+            ),
             presentationPPT:
               apiTeam.presentationPPT ??
               (apiTeam.pptUrl ? { fileUrl: apiTeam.pptUrl } : undefined),
@@ -310,13 +313,16 @@ export function AdminDashboard() {
     setUsers(users.filter((u) => u.id !== userId));
   };
 
-  const handleAddUser = async(newUser: User) => {
+  const handleAddUser = async (newUser: User) => {
     setUsers([...users, newUser]);
-    const res=await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/notifyNewJudge`,{
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newUser),
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/notifyNewJudge`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUser),
+      }
+    );
     setShowAddUser(false);
   };
 
@@ -379,32 +385,54 @@ export function AdminDashboard() {
   };
 
   // NEW: Helpers to normalize and summarize rubrics
-  type NormRubric = { label: string; score: number; max: number; comment?: string };
+  type NormRubric = {
+    label: string;
+    score: number;
+    max: number;
+    comment?: string;
+  };
   const normalizeRubrics = (t: any): NormRubric[] => {
     const raw = t?.rubrics ?? t?.Rubrics ?? [];
     const toList = (x: any): any[] =>
       Array.isArray(x)
         ? x
         : x && typeof x === "object"
-        ? Object.values(x).flatMap((v: any) => (Array.isArray(v) ? v : typeof v === "object" ? [v] : []))
+        ? Object.values(x).flatMap((v: any) =>
+            Array.isArray(v) ? v : typeof v === "object" ? [v] : []
+          )
         : [];
     const list = toList(raw);
     return list.map((r: any) => ({
       label: r?.criterion ?? r?.criteria ?? r?.name ?? r?.title ?? "Criteria",
-      score: Number(r?.score ?? r?.points ?? r?.value ?? r?.marks ?? r?.obtained ?? 0),
-      max: Number(r?.max ?? r?.outOf ?? r?.maxScore ?? r?.weight ?? r?.total ?? r?.maximum ?? 0),
-      comment: r?.comment ?? r?.notes ?? r?.remark,
+      score: Number(
+        r?.score ?? r?.points ?? r?.value ?? r?.marks ?? r?.obtained ?? 0
+      ),
+      max: Number(
+        r?.max ??
+          r?.outOf ??
+          r?.maxScore ??
+          r?.weight ??
+          r?.total ??
+          r?.maximum ??
+          0
+      ),
+      comment: r?.comments ?? r?.notes ?? r?.remark,
     }));
   };
   const getRubricTotals = (items: NormRubric[]) => ({
-    total: items.reduce((a, b) => a + (Number.isFinite(b.score) ? b.score : 0), 0),
+    total: items.reduce(
+      (a, b) => a + (Number.isFinite(b.score) ? b.score : 0),
+      0
+    ),
     max: items.reduce((a, b) => a + (Number.isFinite(b.max) ? b.max : 0), 0),
   });
   const isEvaluated = (t: any) => {
     const items = normalizeRubrics(t);
     if (!items.length) return false;
     const anyScore = items.some((i) => (i.score ?? 0) > 0);
-    const anyComment = items.some((i) => (i.comment && String(i.comment).trim().length > 0));
+    const anyComment = items.some(
+      (i) => i.comment && String(i.comment).trim().length > 0
+    );
     return anyScore || anyComment;
   };
 
@@ -537,7 +565,9 @@ export function AdminDashboard() {
                   className="w-full md:w-1/2 h-9 px-3 rounded-md border bg-background"
                 />
                 {searchLoading && (
-                  <span className="text-xs text-muted-foreground">Searching…</span>
+                  <span className="text-xs text-muted-foreground">
+                    Searching…
+                  </span>
                 )}
                 {!!searchQuery && (
                   <Button
@@ -635,6 +665,9 @@ export function AdminDashboard() {
                   const evaluated = isEvaluated(team);
                   const rubricsNorm = normalizeRubrics(team);
                   const totals = getRubricTotals(rubricsNorm);
+                  const firstComment = rubricsNorm.find(
+                    (r) => (r.comment || "").trim().length > 0
+                  )?.comment;
 
                   return (
                     <div
@@ -646,7 +679,13 @@ export function AdminDashboard() {
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium">{team.teamName}</p>
                             {/* NEW: Evaluation badge */}
-                            <Badge className={evaluated ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"}>
+                            <Badge
+                              className={
+                                evaluated
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                                  : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                              }
+                            >
                               {evaluated ? "Evaluated" : "Unevaluated"}
                             </Badge>
                             {evaluated && totals.max > 0 && (
@@ -662,6 +701,7 @@ export function AdminDashboard() {
                             Submitted: {team.submittedAt.toLocaleDateString()}
                           </p>
                         </div>
+
                         <div className="flex-1">
                           {/* Use a two-column grid so both buttons align vertically in one column */}
                           <div className="mt-1 grid grid-cols-2 items-center gap-x-4 gap-y-2">
@@ -843,11 +883,8 @@ export function AdminDashboard() {
                                   </SelectItem>
                                 ) : (
                                   judge.assignedTeams.map((t) => (
-                                    <SelectItem
-                                      key={t}
-                                      value={t}
-                                    >
-                                      {t.startsWith("PCCOE") ? t : "PCCOE"+t}
+                                    <SelectItem key={t} value={t}>
+                                      {t.startsWith("PCCOE") ? t : "PCCOE" + t}
                                     </SelectItem>
                                   ))
                                 )}
@@ -1039,7 +1076,13 @@ export function AdminDashboard() {
                                     Evaluation
                                   </p>
                                   <div className="flex items-center gap-2">
-                                    <Badge className={evaluated ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"}>
+                                    <Badge
+                                      className={
+                                        evaluated
+                                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                                          : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                                      }
+                                    >
                                       {evaluated ? "Evaluated" : "Unevaluated"}
                                     </Badge>
                                     {evaluated && totals.max > 0 && (
@@ -1414,7 +1457,13 @@ export function AdminDashboard() {
               return (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
-                    <Badge className={evaluated ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"}>
+                    <Badge
+                      className={
+                        evaluated
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                          : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                      }
+                    >
                       {evaluated ? "Evaluated" : "Unevaluated"}
                     </Badge>
                     {max > 0 && (
@@ -1426,20 +1475,30 @@ export function AdminDashboard() {
 
                   <div className="space-y-3">
                     {items.map((r, idx) => (
-                      <div key={idx} className="flex items-start justify-between border rounded-md p-3">
-                        <div className="pr-4">
-                          <p className="text-sm font-medium">{r.label}</p>
-                          {r.comment && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {r.comment}
-                            </p>
-                          )}
+                      <>
+                        <div
+                          key={idx}
+                          className="flex items-start justify-between border rounded-md p-3"
+                        >
+                          <div className="pr-4">
+                            <p className="text-sm font-medium">{r.label}</p>
+                          </div>
+                          <div className="text-sm font-mono whitespace-nowrap">
+                            {r.score} / {r.max > 0 ? r.max : "-"}
+                          </div>
                         </div>
-                        <div className="text-sm font-mono whitespace-nowrap">
-                          {r.score} / {r.max > 0 ? r.max : "-"}
-                        </div>
-                      </div>
+                      </>
                     ))}
+                    {items[0].comment && (
+                      <div className="mt-2 p-2 rounded border bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-200">
+                        <span className="text-xs font-semibold mr-2">
+                          Feedback:
+                        </span>
+                        <span className="text-xs break-words">
+                          {items[0].comment}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

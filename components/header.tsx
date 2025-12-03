@@ -55,37 +55,9 @@ export function Header() {
             {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="relative h-9 w-9 rounded-full bg-transparent hover:bg-accent focus:outline-none"
-              >
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback>
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user.name}</p>
-                  <p className={`text-xs font-medium capitalize ${getRoleColor(user.role)}`}>{user.role}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>{loggingOut ? "Logging out..." : "Log out"}</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button onClick={handleLogout} disabled={loggingOut} variant="destructive" size="sm" className="h-9 px-3">
+            {loggingOut ? "Logging out..." : "Log out"}
+          </Button>
         </div>
       </div>
     </header>
