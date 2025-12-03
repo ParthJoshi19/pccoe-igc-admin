@@ -199,7 +199,6 @@ export default function RunAssignmentsPage() {
                 <TableRow>
                   <TableHead>Judge</TableHead>
                   <TableHead className="text-right">Assigned Teams</TableHead>
-                  <TableHead className="text-right">Assigned Videos</TableHead>
                   <TableHead className="text-right">Limit Used</TableHead>
                   <TableHead className="text-right">Empty Slots</TableHead>
                 </TableRow>
