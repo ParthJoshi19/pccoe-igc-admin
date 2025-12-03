@@ -53,6 +53,8 @@ export function AdminDashboard() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState<{ totalTeams: number; approvedTeams: number; pendingTeams: number; rejectedTeams: number } | null>(null);
+  const [videosCount, setVideosCount] = useState<number>(0);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
@@ -148,6 +150,7 @@ export function AdminDashboard() {
               data?.total ??
               (Array.isArray(data.teams) ? data.teams.length : 0)
           );
+          if (data?.stats) setStats(data.stats);
         } else if (Array.isArray(data?.data)) {
           const mappedTeams: Team[] = data.data.map((apiTeam: any) => {
             const item: any = {
@@ -196,6 +199,7 @@ export function AdminDashboard() {
             data?.pagination?.total ??
               (Array.isArray(data.data) ? data.data.length : 0)
           );
+          if (data?.stats) setStats(data.stats);
         }
         // console.log("Mapped Teams:", teams);
       } catch (error) {
@@ -211,6 +215,24 @@ export function AdminDashboard() {
       if (!searchQuery.trim()) {
         getTeams();
       }
+      // Fetch global counts (videos + team statuses)
+      (async () => {
+        try {
+          const res = await fetch(`/api/getCounts`, { method: "GET" });
+          const data = await res.json();
+          if (data?.counts) {
+            setVideosCount(Number(data.counts.videos || 0));
+            setStats((prev) => ({
+              totalTeams: data.counts.teams?.total ?? prev?.totalTeams ?? 0,
+              approvedTeams: data.counts.teams?.approved ?? prev?.approvedTeams ?? 0,
+              pendingTeams: data.counts.teams?.pending ?? prev?.pendingTeams ?? 0,
+              rejectedTeams: data.counts.teams?.rejected ?? prev?.rejectedTeams ?? 0,
+            }));
+          }
+        } catch (err) {
+          console.error("Failed to fetch counts:", err);
+        }
+      })();
     }
     // console.log(teams);
   }, [user?.token, user?.id, page, limit, searchQuery]);
@@ -304,11 +326,13 @@ export function AdminDashboard() {
   );
   const allJudges = users.filter((u) => u.role === "judge");
 
+  
+
   const teamStats = {
-    total: teams.length,
-    approved: teams.filter((t) => t.status === "approved").length,
-    pending: teams.filter((t) => t.status === "pending").length,
-    rejected: teams.filter((t) => t.status === "rejected").length,
+    total: stats?.totalTeams ?? teams.length,
+    approved: stats?.approvedTeams ?? teams.filter((t) => t.status === "Approved").length,
+    pending: stats?.pendingTeams ?? teams.filter((t) => t.status === "Pending").length,
+    rejected: stats?.rejectedTeams ?? teams.filter((t) => t.status === "Rejected").length,
   };
 
   const handleDeleteUser = (userId: string) => {
@@ -330,7 +354,7 @@ export function AdminDashboard() {
 
   const handleUpdateTeamStatus = (
     teamId: string,
-    status: "pending" | "approved" | "rejected"
+    status: "Pending" | "Approved" | "Rejected"
   ) => {
     setTeams(
       teams.map((t) =>
@@ -451,7 +475,7 @@ export function AdminDashboard() {
     }
   };
 
-  const totalTeamsCount = total || teams.length;
+  const totalTeamsCount = stats?.totalTeams ?? total ?? teams.length;
   const pageStart = teams.length ? (page - 1) * limit + 1 : 0;
   const pageEnd = teams.length
     ? Math.min((page - 1) * limit + teams.length, totalTeamsCount)
@@ -485,14 +509,14 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Videos</CardTitle>
+            <PlayCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalTeamsCount}</div>
+            <div className="text-2xl font-bold">{videosCount}</div>
           </CardContent>
         </Card>
         <Card>
@@ -502,7 +526,7 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {teamStats.approved}
+              {stats?.approvedTeams}
             </div>
           </CardContent>
         </Card>
@@ -515,7 +539,20 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {teamStats.pending}
+              {stats?.pendingTeams}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Rejected
+            </CardTitle>
+            <Clock className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {stats?.rejectedTeams}
             </div>
           </CardContent>
         </Card>
@@ -826,13 +863,13 @@ export function AdminDashboard() {
                     (t) => t.assignedJudgeId === judge.id
                   );
                   const approvedTeams = assignedTeams.filter(
-                    (t) => t.status === "approved"
+                    (t) => t.status === "Approved"
                   ).length;
                   const pendingTeams = assignedTeams.filter(
-                    (t) => t.status === "pending"
+                    (t) => t.status === "Pending"
                   ).length;
                   const rejectedTeams = assignedTeams.filter(
-                    (t) => t.status === "rejected"
+                    (t) => t.status === "Rejected"
                   ).length;
 
                   return (
