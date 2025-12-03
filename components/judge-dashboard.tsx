@@ -149,7 +149,7 @@ export function JudgeDashboard() {
       try {
         const res = await fetch(
           `/api/getSpecTeams?judge=${encodeURIComponent(judge)}`,
-          { cache: "no-store" }
+          { cache: "no-store",headers: { "Authorization":`Bearer ${user?.token}` } }
         );
         if (!res.ok) return;
         const { data } = await res.json();
@@ -470,7 +470,7 @@ export function JudgeDashboard() {
 
       const res = await fetch(`/api/saveEvaluation`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to save evaluation");

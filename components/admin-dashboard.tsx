@@ -69,6 +69,7 @@ export function AdminDashboard() {
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getJudges`,
           {
             method: "POST",
+            headers:{"Authorization":`Bearer ${user?.token}`},
             body: JSON.stringify({ token: user?.token }),
           }
         );
@@ -102,6 +103,7 @@ export function AdminDashboard() {
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getTeams`,
           {
             method: "POST",
+            headers:{"Authorization":`Bearer ${user?.token}`},
             body: JSON.stringify({ token: user?.token, page, limit }),
           }
         );
@@ -224,7 +226,7 @@ export function AdminDashboard() {
       try {
         const res = await fetch(`/api/searchTeams`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
           body: JSON.stringify({ query: q }),
         });
         const data = await res.json();
@@ -319,7 +321,7 @@ export function AdminDashboard() {
       `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/notifyNewJudge`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
         body: JSON.stringify(newUser),
       }
     );
@@ -370,7 +372,7 @@ export function AdminDashboard() {
       console.log("Assigning judge with payload:", payload);
       const res = await fetch(`/api/assignJudge`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
