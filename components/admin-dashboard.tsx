@@ -1166,17 +1166,6 @@ export function AdminDashboard() {
                         </CardContent>
                       </Card>
 
-                      {/* Mentor Information */}
-
-                      {/* Team Members */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">
-                            Team Members
-                          </CardTitle>
-                        </CardHeader>
-                      </Card>
-
                       {/* Documents */}
                       <Card className="md:col-span-2">
                         <CardHeader>
