@@ -30,6 +30,7 @@ import {
   FileText,
   PlayCircle,
   Plus,
+  Loader,
 } from "lucide-react";
 import { type User, type Team, canManageUser } from "@/lib/auth";
 import { useAuth } from "@/contexts/auth-context";
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRouter } from "next/router";
 import { ru } from "date-fns/locale";
+import { set } from "date-fns";
 
 export function AdminDashboard() {
   const { user } = useAuth();
@@ -58,6 +60,8 @@ export function AdminDashboard() {
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
+
+  const [loader,setLoader]=useState(false);
 
   const [pptPreviewUrl, setPptPreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -100,6 +104,7 @@ export function AdminDashboard() {
 
     const getTeams = async () => {
       try {
+        setLoader(true);
         setLoadingTeams(true);
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getTeams`,
@@ -206,6 +211,7 @@ export function AdminDashboard() {
         console.error("Failed to fetch teams:", error);
       } finally {
         setLoadingTeams(false);
+        setLoader(false);
       }
     };
 
@@ -736,9 +742,6 @@ export function AdminDashboard() {
                           <p className="text-sm text-muted-foreground">
                             ID: {team.teamId}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Submitted: {team.submittedAt.toLocaleDateString()}
-                          </p>
                         </div>
 
                         <div className="flex-1">
@@ -833,7 +836,8 @@ export function AdminDashboard() {
                     </div>
                   );
                 })}
-                {teams.length === 0 && (
+                {loader && <Loader className="animate-spin"/>}
+                {teams.length === 0 && !loader && (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>No team submissions found.</p>
