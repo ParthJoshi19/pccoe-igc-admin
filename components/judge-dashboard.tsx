@@ -43,7 +43,7 @@ import {
 import { type Team } from "@/lib/auth";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/auth-context";
-
+import { toast, Toaster } from "react-hot-toast";
 interface TeamEvaluation {
   teamId: string;
   // Use backend statuses
@@ -105,7 +105,6 @@ function computeRatingFromRubrics(items: RubricItem[]) {
 
 export function JudgeDashboard() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const [teams, setTeams] = useState<Team[]>([]);
   const [evaluations, setEvaluations] = useState<TeamEvaluation[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
@@ -149,7 +148,7 @@ export function JudgeDashboard() {
       try {
         const res = await fetch(
           `/api/getSpecTeams?judge=${encodeURIComponent(judge)}`,
-          { cache: "no-store" }
+          { cache: "no-store",headers: { "Authorization":`Bearer ${user?.token}` } }
         );
         if (!res.ok) return;
         const { data } = await res.json();
@@ -428,11 +427,7 @@ export function JudgeDashboard() {
 
       // Require feedback to be non-empty
       if (!isFeedbackValid(currentEvaluation.feedback)) {
-        toast({
-          title: "Feedback required",
-          description: "Please add feedback before saving your evaluation.",
-          variant: "destructive" as any,
-        });
+        toast.error("Please add feedback before saving your evaluation.");
         setSaving(false);
         return;
       }
@@ -470,16 +465,13 @@ export function JudgeDashboard() {
 
       const res = await fetch(`/api/saveEvaluation`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to save evaluation");
       const { data } = await res.json();
 
-      toast({
-        title: "Evaluation saved",
-        description: `Saved review for ${selectedTeam.teamName}`,
-      });
+      toast.success(`Saved review for ${selectedTeam.teamName}`);
 
       // Update local evaluations view
       const updatedEvaluations = evaluations.filter(
@@ -516,11 +508,7 @@ export function JudgeDashboard() {
       setEvaluationDialog(false);
       setSelectedTeam(null);
     } catch {
-      toast({
-        title: "Save failed",
-        description: "Could not save evaluation. Please try again.",
-        variant: "destructive" as any,
-      });
+      toast.error("Could not save evaluation. Please try again.");
       setEvaluationDialog(false);
       setSelectedTeam(null);
     } finally {
@@ -558,6 +546,7 @@ export function JudgeDashboard() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      <Toaster position="top-right" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Judge Dashboard</h1>

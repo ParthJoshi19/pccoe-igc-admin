@@ -29,7 +29,8 @@ export async function GET(req: Request) {
 
     await connectToDB();
 
-    const judge = judgeRaw.toLowerCase();
+    const judge = judgeRaw;
+    // console.log(`Fetching teams for judge: ${judge}`);
 
     // Resolve judge user and their assigned teamIds (username/email/ObjectId)
     const byIdentity = await User.findOne({
