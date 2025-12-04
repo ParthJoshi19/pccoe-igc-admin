@@ -31,6 +31,7 @@ import {
   PlayCircle,
   Plus,
 } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { type User, type Team, canManageUser } from "@/lib/auth";
 import { useAuth } from "@/contexts/auth-context";
 import { AddUserDialog } from "@/components/add-user-dialog";
@@ -61,6 +62,37 @@ export function AdminDashboard() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   // NEW: evaluation modal state
   const [evalTeam, setEvalTeam] = useState<Team | null>(null);
+  
+  // Stats for all teams
+  const [allTeamsStats, setAllTeamsStats] = useState({
+    totalTeams: 0,
+    regional: { maharashtra: 0, outsideMaharashtra: 0 },
+    institutional: { pccoe: 0, nonPccoe: 0 }
+  });
+
+  useEffect(() => {
+    // Fetch complete team statistics
+    const getTeamStats = async () => {
+      try {
+        const res = await fetch('/api/getTeamStats', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${user?.token}`
+          }
+        });
+        const data = await res.json();
+        if (data.success && data.stats) {
+          setAllTeamsStats(data.stats);
+        }
+      } catch (error) {
+        console.error('Failed to fetch team stats:', error);
+      }
+    };
+
+    if (user?.token) {
+      getTeamStats();
+    }
+  }, [user?.token]);
 
   useEffect(() => {
     const getJudges = async () => {
@@ -117,6 +149,7 @@ export function AdminDashboard() {
             leaderEmail: apiTeam.leaderEmail,
             leaderName: apiTeam.leaderName,
             institution: apiTeam.institution,
+            state: apiTeam.state,
             program: apiTeam.program,
             members: apiTeam.members || [],
             mentorName: apiTeam.mentorName,
@@ -160,6 +193,7 @@ export function AdminDashboard() {
               leaderEmail: apiTeam.leaderEmail,
               leaderName: apiTeam.leaderName ?? "",
               institution: apiTeam.institution,
+              state: apiTeam.state,
               program: apiTeam.program ?? "",
               members: apiTeam.members ?? [],
               mentorName: apiTeam.mentorName ?? "",
@@ -242,6 +276,7 @@ export function AdminDashboard() {
             leaderEmail: apiTeam.leaderEmail,
             leaderName: apiTeam.leaderName ?? "",
             institution: apiTeam.institution,
+            state: apiTeam.state,
             program: apiTeam.program ?? "",
             members: apiTeam.members ?? [],
             mentorName: apiTeam.mentorName ?? "",
@@ -456,6 +491,13 @@ export function AdminDashboard() {
     : 0;
   const isLastPage = pageEnd >= totalTeamsCount;
 
+  // Use stats from API for all teams (not just current page)
+  const maharashtraTeams = allTeamsStats.regional.maharashtra;
+  const outOfMaharashtraTeams = allTeamsStats.regional.outsideMaharashtra;
+  const pccoeTeams = allTeamsStats.institutional.pccoe;
+  const nonPccoeTeams = allTeamsStats.institutional.nonPccoe;
+  const totalStatsTeams = allTeamsStats.totalTeams;
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -527,6 +569,103 @@ export function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-purple-600">
               {managedJudges.length}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Regional Distribution Stats - Pie Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Regional Distribution</CardTitle>
+            <CardDescription>
+              Total {totalStatsTeams} teams across all regions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: "Maharashtra", value: maharashtraTeams, color: "#3b82f6" },
+                    { name: "Outside Maharashtra", value: outOfMaharashtraTeams, color: "#f97316" }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {[
+                    { name: "Maharashtra", value: maharashtraTeams, color: "#3b82f6" },
+                    { name: "Outside Maharashtra", value: outOfMaharashtraTeams, color: "#f97316" }
+                  ].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="mt-4 grid grid-cols-2 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold text-blue-600">{maharashtraTeams}</p>
+                <p className="text-sm text-muted-foreground">Maharashtra</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-orange-600">{outOfMaharashtraTeams}</p>
+                <p className="text-sm text-muted-foreground">Outside MH</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Institutional Distribution</CardTitle>
+            <CardDescription>
+              Total {totalStatsTeams} teams across all institutions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: "PCCOE", value: pccoeTeams, color: "#a855f7" },
+                    { name: "Other Institutions", value: nonPccoeTeams, color: "#14b8a6" }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {[
+                    { name: "PCCOE", value: pccoeTeams, color: "#a855f7" },
+                    { name: "Other Institutions", value: nonPccoeTeams, color: "#14b8a6" }
+                  ].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="mt-4 grid grid-cols-2 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold text-purple-600">{pccoeTeams}</p>
+                <p className="text-sm text-muted-foreground">PCCOE</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-teal-600">{nonPccoeTeams}</p>
+                <p className="text-sm text-muted-foreground">Other Institutions</p>
+              </div>
             </div>
           </CardContent>
         </Card>

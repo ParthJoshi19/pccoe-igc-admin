@@ -25,6 +25,8 @@ export interface Team {
   submittedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  state?: string;
+  institution?: string;
 }
 
 
