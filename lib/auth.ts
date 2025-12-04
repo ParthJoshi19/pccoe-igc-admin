@@ -19,7 +19,7 @@ export interface Team {
   teamName: string;
   leaderEmail: string;
   videoUrl: string;
-  status: "Pending" | "Approved" | "Rejected";
+  status: "pending" | "approved" | "rejected";
   assignedJudgeId?: string;
   assignedJudgeEmail?: string;
   submittedAt: Date;
@@ -27,6 +27,7 @@ export interface Team {
   updatedAt: Date;
   state?: string;
   institution?: string;
+  country?: string;
 }
 
 

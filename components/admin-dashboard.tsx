@@ -61,6 +61,8 @@ export function AdminDashboard() {
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
+  const [locationFilter, setLocationFilter] = useState<string>("all");
+  const [institutionFilter, setInstitutionFilter] = useState<string>("all");
 
   const [loader,setLoader]=useState(false);
 
@@ -138,20 +140,36 @@ export function AdminDashboard() {
       try {
         setLoader(true);
         setLoadingTeams(true);
+        
+        // If filters are active, fetch all teams instead of paginated
+        const shouldFetchAll = locationFilter !== "all" || institutionFilter !== "all";
+        const fetchLimit = shouldFetchAll ? 1000 : limit;
+        const fetchPage = shouldFetchAll ? 1 : page;
+        
+        console.log("Fetching teams with filters:", { 
+          locationFilter, 
+          institutionFilter, 
+          shouldFetchAll, 
+          fetchLimit, 
+          fetchPage 
+        });
+        
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getTeams`,
           {
             method: "POST",
             headers:{"Authorization":`Bearer ${user?.token}`},
-            body: JSON.stringify({ token: user?.token, page, limit }),
+            body: JSON.stringify({ token: user?.token, page: fetchPage, limit: fetchLimit }),
           }
         );
         const data = await res.json();
 
-        console.log(data);
+        console.log("API Response:", data);
+        console.log("data.teams:", data.teams?.length);
+        console.log("data.data:", data.data?.length);
 
         if (data.teams && Array.isArray(data.teams)) {
-          const mappedTeams: Team[] = data.teams.map((apiTeam: any) => ({
+          let mappedTeams: Team[] = data.teams.map((apiTeam: any) => ({
             _id: apiTeam.id,
             teamName: apiTeam.teamName,
             teamId: apiTeam.registrationNumber,
@@ -159,6 +177,7 @@ export function AdminDashboard() {
             leaderName: apiTeam.leaderName,
             institution: apiTeam.institution,
             state: apiTeam.state,
+            country: apiTeam.country,
             program: apiTeam.program,
             members: apiTeam.members || [],
             mentorName: apiTeam.mentorName,
@@ -182,15 +201,65 @@ export function AdminDashboard() {
             rubrics: apiTeam.Rubrics,
             instituteNOC: apiTeam.instituteNOC,
           }));
+
+          console.log("Before filters:", mappedTeams.length, "teams");
+
+          // Apply filters
+          if (locationFilter !== "all") {
+            const beforeCount = mappedTeams.length;
+            if (locationFilter === "maharashtra") {
+              mappedTeams = mappedTeams.filter(t => {
+                const isMaharashtra = t.state?.toLowerCase() === "maharashtra";
+                return isMaharashtra;
+              });
+            } else if (locationFilter === "international") {
+              mappedTeams = mappedTeams.filter(t => {
+                const notMaharashtra = t.state?.toLowerCase() !== "maharashtra";
+                const notIndia = t.country?.toLowerCase() !== "india";
+                return notMaharashtra && notIndia;
+              });
+            }
+            console.log(`Location filter '${locationFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
+          }
+
+          if (institutionFilter !== "all") {
+            const beforeCount = mappedTeams.length;
+            if (institutionFilter === "pccoe") {
+              mappedTeams = mappedTeams.filter(t => {
+                const inst = t.institution?.toLowerCase() || "";
+                return inst.includes("pccoe") || inst.includes("pimpri chinchwad college of engineering");
+              });
+            } else if (institutionFilter === "other") {
+              mappedTeams = mappedTeams.filter(t => {
+                const inst = t.institution?.toLowerCase() || "";
+                return !inst.includes("pccoe") && !inst.includes("pimpri chinchwad college of engineering");
+              });
+            }
+            console.log(`Institution filter '${institutionFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
+          }
+
+          // If filters are active, apply pagination on filtered results
+          const totalFiltered = mappedTeams.length;
+          console.log("After all filters:", totalFiltered, "teams");
+          
+          if (shouldFetchAll) {
+            // Paginate filtered results
+            const start = (page - 1) * limit;
+            const end = start + limit;
+            mappedTeams = mappedTeams.slice(start, end);
+            console.log("Paginated to show:", start, "to", end, "=", mappedTeams.length, "teams");
+          }
+
           setTeams(mappedTeams);
-          setTotal(
+          setTotal(shouldFetchAll ? totalFiltered : (
             data?.pagination?.total ??
-              data?.total ??
-              (Array.isArray(data.teams) ? data.teams.length : 0)
-          );
+            data?.total ??
+            (Array.isArray(data.teams) ? data.teams.length : 0)
+          ));
           if (data?.stats) setStats(data.stats);
         } else if (Array.isArray(data?.data)) {
-          const mappedTeams: Team[] = data.data.map((apiTeam: any) => {
+          console.log("Using data.data path with", data.data.length, "teams");
+          let mappedTeams: Team[] = data.data.map((apiTeam: any) => {
             const item: any = {
               _id:
                 apiTeam.id ||
@@ -204,6 +273,7 @@ export function AdminDashboard() {
               leaderName: apiTeam.leaderName ?? "",
               institution: apiTeam.institution,
               state: apiTeam.state,
+              country: apiTeam.country,
               program: apiTeam.program ?? "",
               members: apiTeam.members ?? [],
               mentorName: apiTeam.mentorName ?? "",
@@ -233,11 +303,47 @@ export function AdminDashboard() {
             };
             return item as Team;
           });
+
+          console.log("Before filters (data.data path):", mappedTeams.length, "teams");
+
+          // Apply filters to data.data array too
+          if (locationFilter !== "all") {
+            const beforeCount = mappedTeams.length;
+            if (locationFilter === "maharashtra") {
+              mappedTeams = mappedTeams.filter(t => {
+                const isMaharashtra = t.state?.toLowerCase() === "maharashtra";
+                return isMaharashtra;
+              });
+            } else if (locationFilter === "international") {
+              mappedTeams = mappedTeams.filter(t => {
+                const notMaharashtra = t.state?.toLowerCase() !== "maharashtra";
+                const notIndia = t.country?.toLowerCase() !== "india";
+                return notMaharashtra && notIndia;
+              });
+            }
+            console.log(`Location filter '${locationFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
+          }
+
+          if (institutionFilter !== "all") {
+            const beforeCount = mappedTeams.length;
+            if (institutionFilter === "pccoe") {
+              mappedTeams = mappedTeams.filter(t => {
+                const inst = t.institution?.toLowerCase() || "";
+                return inst.includes("pccoe") || inst.includes("pimpri chinchwad college of engineering");
+              });
+            } else if (institutionFilter === "other") {
+              mappedTeams = mappedTeams.filter(t => {
+                const inst = t.institution?.toLowerCase() || "";
+                return !inst.includes("pccoe") && !inst.includes("pimpri chinchwad college of engineering");
+              });
+            }
+            console.log(`Institution filter '${institutionFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
+          }
+
+          console.log("Final teams (data.data path):", mappedTeams.length);
+
           setTeams(mappedTeams);
-          setTotal(
-            data?.pagination?.total ??
-              (Array.isArray(data.data) ? data.data.length : 0)
-          );
+          setTotal(mappedTeams.length);
           if (data?.stats) setStats(data.stats);
         }
         // console.log("Mapped Teams:", teams);
@@ -251,8 +357,9 @@ export function AdminDashboard() {
 
     if (user?.token) {
       getJudges();
-      // Only fetch paginated teams when no active search
-      if (!searchQuery.trim()) {
+      // Fetch teams when no search query OR when filters are active
+      const hasFilters = locationFilter !== "all" || institutionFilter !== "all";
+      if (!searchQuery.trim() || hasFilters) {
         getTeams();
       }
       // Fetch global counts (videos + team statuses)
@@ -275,7 +382,7 @@ export function AdminDashboard() {
       })();
     }
     // console.log(teams);
-  }, [user?.token, user?.id, page, limit, searchQuery]);
+  }, [user?.token, user?.id, page, limit, searchQuery, locationFilter, institutionFilter]);
 
   // Debounced team search hitting /api/searchTeams
   useEffect(() => {
@@ -286,6 +393,7 @@ export function AdminDashboard() {
       if (!q) return; // handled by getTeams above
       setSearchLoading(true);
       try {
+        // Regular search query
         const res = await fetch(`/api/searchTeams`, {
           method: "POST",
           headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
@@ -307,6 +415,7 @@ export function AdminDashboard() {
             leaderName: apiTeam.leaderName ?? "",
             institution: apiTeam.institution,
             state: apiTeam.state,
+            country: apiTeam.country,
             program: apiTeam.program ?? "",
             members: apiTeam.members ?? [],
             mentorName: apiTeam.mentorName ?? "",
@@ -715,6 +824,104 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Filter Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+            Filter Teams
+          </CardTitle>
+          <CardDescription>Apply filters to view specific team categories</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            {/* Location Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Location</label>
+              <Select
+                value={locationFilter}
+                onValueChange={(value) => {
+                  console.log("Location filter changed to:", value);
+                  setLocationFilter(value);
+                  setSearchQuery(""); // Clear search query when filter changes
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  <SelectItem value="maharashtra">🏛️ Maharashtra</SelectItem>
+                  <SelectItem value="international">🌍 International</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Institution Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Institution</label>
+              <Select
+                value={institutionFilter}
+                onValueChange={(value) => {
+                  console.log("Institution filter changed to:", value);
+                  setInstitutionFilter(value);
+                  setSearchQuery(""); // Clear search query when filter changes
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select institution" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Institutions</SelectItem>
+                  <SelectItem value="pccoe">🎓 PCCOE</SelectItem>
+                  <SelectItem value="other">🏫 Other Institutions</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Clear Filters Button */}
+            <div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setLocationFilter("all");
+                  setInstitutionFilter("all");
+                  setSearchQuery("");
+                  setPage(1);
+                }}
+                className="w-full"
+                disabled={locationFilter === "all" && institutionFilter === "all" && !searchQuery}
+              >
+                Clear All Filters
+              </Button>
+            </div>
+          </div>
+
+          {/* Active Filter Indicators */}
+          {(locationFilter !== "all" || institutionFilter !== "all") && (
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t">
+              <span className="text-sm font-medium text-muted-foreground">Active Filters:</span>
+              <div className="flex flex-wrap gap-2">
+                {locationFilter !== "all" && (
+                  <Badge variant="secondary">
+                    {locationFilter === "maharashtra" ? "🏛️ Maharashtra" : "🌍 International"}
+                  </Badge>
+                )}
+                {institutionFilter !== "all" && (
+                  <Badge variant="secondary">
+                    {institutionFilter === "pccoe" ? "🎓 PCCOE" : "🏫 Other Institutions"}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="teams" className="space-y-4">
         <TabsList>
