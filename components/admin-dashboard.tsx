@@ -209,7 +209,7 @@ export function AdminDashboard() {
             const beforeCount = mappedTeams.length;
             if (locationFilter === "maharashtra") {
               mappedTeams = mappedTeams.filter(t => {
-                const isMaharashtra = t.state?.toLowerCase() === "maharashtra";
+                const isMaharashtra = (t.state?.toLowerCase() === "maharashtra" || t.state?.toLocaleLowerCase()==="maharastra");
                 return isMaharashtra;
               });
             } else if (locationFilter === "international") {

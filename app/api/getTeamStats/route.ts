@@ -45,11 +45,11 @@ export async function GET(request: NextRequest) {
 
     // Calculate statistics
     const maharashtraTeams = teamsWithVideos.filter(
-      (t: any) => t.state?.toLowerCase() === 'maharashtra'
+      (t: any) => t.state?.toLowerCase() === 'maharashtra' || t.state?.toLocaleLowerCase()==='maharastra'
     ).length
 
     const outOfMaharashtraTeams = teamsWithVideos.filter(
-      (t: any) => t.state?.toLowerCase() !== 'maharashtra'
+      (t: any) => t.state?.toLowerCase() !== 'maharashtra' && t.state?.toLocaleLowerCase() !== 'maharastra'
     ).length
 
     const pccoeTeams = teamsWithVideos.filter((t: any) =>
