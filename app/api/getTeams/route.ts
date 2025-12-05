@@ -19,6 +19,8 @@ import { NextRequest, NextResponse } from 'next/server'
       // const token: string | undefined = body?.token
       const pageRaw = body?.page
       const limitRaw = body?.limit
+      const locationFilter: string = (body?.locationFilter ?? 'all') as string
+      const institutionFilter: string = (body?.institutionFilter ?? 'all') as string
 
       // if (!token) {
       //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -37,8 +39,34 @@ import { NextRequest, NextResponse } from 'next/server'
 
       const skip = (page - 1) * limit
 
-      // Only include teams whose registration has been accepted (approved)
-      const filter = { registrationStatus: 'approved' } as const
+      // Base filter: Only include approved registrations
+      const filter: any = { registrationStatus: 'approved' }
+
+      // Apply location filter
+      if (locationFilter && locationFilter !== 'all') {
+        if (locationFilter === 'maharashtra' || locationFilter === 'maharastra') {
+          // Teams within Maharashtra, India
+          filter.country = 'India'
+          filter.state = { $regex: /^maharashtra$/i }
+        } else if (locationFilter === 'non-maharashtra') {
+          // Teams within India but outside Maharashtra
+          filter.country = 'India'
+          filter.state = { $not: { $regex: /^maharashtra$/i } }
+        } else if (locationFilter === 'international') {
+          // Teams outside India
+          filter.country = { $not: { $regex: /^india$/i } }
+        }
+      }
+
+      // Apply institution filter
+      if (institutionFilter && institutionFilter !== 'all') {
+        const pccoeRegex = /(pccoe|pimpri\s*chinchwad\s*college\s*of\s*engineering)/i
+        if (institutionFilter === 'pccoe') {
+          filter.institution = { $regex: pccoeRegex }
+        } else if (institutionFilter === 'other') {
+          filter.institution = { $not: { $regex: pccoeRegex } }
+        }
+      }
 
       const [docs, total] = await Promise.all([
         TeamRegistration.find(filter)
@@ -53,6 +81,8 @@ import { NextRequest, NextResponse } from 'next/server'
             leaderEmail: 1,
             leaderName: 1,
             institution: 1,
+            state: 1,
+            country: 1,
             program: 1,
             members: 1,
             mentorName: 1,

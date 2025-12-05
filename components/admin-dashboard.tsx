@@ -63,6 +63,7 @@ export function AdminDashboard() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [locationFilter, setLocationFilter] = useState<string>("all");
   const [institutionFilter, setInstitutionFilter] = useState<string>("all");
+  const [countryFilter, setCountryFilter] = useState<string>("all");
 
   const [loader,setLoader]=useState(false);
 
@@ -140,9 +141,9 @@ export function AdminDashboard() {
       try {
         setLoader(true);
         setLoadingTeams(true);
-        
+        setTeams([]);
         // If filters are active, fetch all teams instead of paginated
-        const shouldFetchAll = locationFilter !== "all" || institutionFilter !== "all";
+        const shouldFetchAll = locationFilter !== "all" || institutionFilter !== "all" || countryFilter !== "all";
         const fetchLimit = shouldFetchAll ? 1000 : limit;
         const fetchPage = shouldFetchAll ? 1 : page;
         
@@ -159,14 +160,21 @@ export function AdminDashboard() {
           {
             method: "POST",
             headers:{"Authorization":`Bearer ${user?.token}`},
-            body: JSON.stringify({ token: user?.token, page: fetchPage, limit: fetchLimit }),
+            body: JSON.stringify({ 
+              token: user?.token, 
+              page: fetchPage, 
+              limit: fetchLimit,
+              locationFilter,
+              institutionFilter,
+              countryFilter,
+            }),
           }
         );
         const data = await res.json();
 
-        console.log("API Response:", data);
-        console.log("data.teams:", data.teams?.length);
-        console.log("data.data:", data.data?.length);
+        // console.log("API Response:", data);
+        // console.log("data.teams:", data.teams?.length);
+        // console.log("data.data:", data.data?.length);
 
         if (data.teams && Array.isArray(data.teams)) {
           let mappedTeams: Team[] = data.teams.map((apiTeam: any) => ({
@@ -236,6 +244,19 @@ export function AdminDashboard() {
               });
             }
             console.log(`Institution filter '${institutionFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
+          }
+
+          if (countryFilter !== "all") {
+            const beforeCount = mappedTeams.length;
+            if (countryFilter === "india") {
+              mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() === "india");
+            } else if (countryFilter === "non-india") {
+              mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() !== "india");
+            } else {
+              // exact match if a specific country name is provided
+              mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() === countryFilter.toLowerCase());
+            }
+            console.log(`Country filter '${countryFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
           }
 
           // If filters are active, apply pagination on filtered results
@@ -340,6 +361,18 @@ export function AdminDashboard() {
             console.log(`Institution filter '${institutionFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
           }
 
+          if (countryFilter !== "all") {
+            const beforeCount = mappedTeams.length;
+            if (countryFilter === "india") {
+              mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() === "india");
+            } else if (countryFilter === "non-india") {
+              mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() !== "india");
+            } else {
+              mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() === countryFilter.toLowerCase());
+            }
+            console.log(`Country filter '${countryFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
+          }
+
           console.log("Final teams (data.data path):", mappedTeams.length);
 
           setTeams(mappedTeams);
@@ -358,7 +391,7 @@ export function AdminDashboard() {
     if (user?.token) {
       getJudges();
       // Fetch teams when no search query OR when filters are active
-      const hasFilters = locationFilter !== "all" || institutionFilter !== "all";
+      const hasFilters = locationFilter !== "all" || institutionFilter !== "all" || countryFilter !== "all";
       if (!searchQuery.trim() || hasFilters) {
         getTeams();
       }
@@ -382,7 +415,7 @@ export function AdminDashboard() {
       })();
     }
     // console.log(teams);
-  }, [user?.token, user?.id, page, limit, searchQuery, locationFilter, institutionFilter]);
+  }, [user?.token, user?.id, page, limit, searchQuery, locationFilter, institutionFilter, countryFilter]);
 
   // Debounced team search hitting /api/searchTeams
   useEffect(() => {
@@ -837,7 +870,7 @@ export function AdminDashboard() {
           <CardDescription>Apply filters to view specific team categories</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             {/* Location Filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Location</label>
@@ -855,8 +888,8 @@ export function AdminDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Locations</SelectItem>
-                  <SelectItem value="maharashtra">🏛️ Maharashtra</SelectItem>
-                  <SelectItem value="international">🌍 International</SelectItem>
+                  <SelectItem value="maharashtra">Maharashtra</SelectItem>
+                  <SelectItem value="non-maharashtra">Non-Maharashtra</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -884,6 +917,29 @@ export function AdminDashboard() {
               </Select>
             </div>
 
+            {/* Country Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Country</label>
+              <Select
+                value={countryFilter}
+                onValueChange={(value) => {
+                  console.log("Country filter changed to:", value);
+                  setCountryFilter(value);
+                  setSearchQuery("");
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Countries</SelectItem>
+                  <SelectItem value="india">India</SelectItem>
+                  <SelectItem value="non-india">Non-India</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Clear Filters Button */}
             <div>
               <Button
@@ -891,11 +947,12 @@ export function AdminDashboard() {
                 onClick={() => {
                   setLocationFilter("all");
                   setInstitutionFilter("all");
+                  setCountryFilter("all");
                   setSearchQuery("");
                   setPage(1);
                 }}
                 className="w-full"
-                disabled={locationFilter === "all" && institutionFilter === "all" && !searchQuery}
+                disabled={locationFilter === "all" && institutionFilter === "all" && countryFilter === "all" && !searchQuery}
               >
                 Clear All Filters
               </Button>
@@ -903,18 +960,23 @@ export function AdminDashboard() {
           </div>
 
           {/* Active Filter Indicators */}
-          {(locationFilter !== "all" || institutionFilter !== "all") && (
+          {(locationFilter !== "all" || institutionFilter !== "all" || countryFilter !== "all") && (
             <div className="flex items-center gap-2 mt-4 pt-4 border-t">
               <span className="text-sm font-medium text-muted-foreground">Active Filters:</span>
               <div className="flex flex-wrap gap-2">
                 {locationFilter !== "all" && (
                   <Badge variant="secondary">
-                    {locationFilter === "maharashtra" ? "🏛️ Maharashtra" : "🌍 International"}
+                    {locationFilter === "maharashtra" ? "Maharashtra" : "Non-Maharashtra"}
                   </Badge>
                 )}
                 {institutionFilter !== "all" && (
                   <Badge variant="secondary">
                     {institutionFilter === "pccoe" ? "🎓 PCCOE" : "🏫 Other Institutions"}
+                  </Badge>
+                )}
+                {countryFilter !== "all" && (
+                  <Badge variant="secondary">
+                    {countryFilter === "india" ? "India" : countryFilter === "non-india" ? "Non-India" : countryFilter}
                   </Badge>
                 )}
               </div>
