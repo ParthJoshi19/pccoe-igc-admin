@@ -113,7 +113,7 @@ export function AdminDashboard() {
         );
         const data = await res.json();
 
-        console.log(data);
+        // console.log(data);
 
         if (data.users && Array.isArray(data.users)) {
           const mappedUsers: User[] = data.users.map((apiUser: any) => ({
@@ -144,13 +144,13 @@ export function AdminDashboard() {
         const fetchLimit = shouldFetchAll ? 1000 : limit;
         const fetchPage = shouldFetchAll ? 1 : page;
         
-        console.log("Fetching teams with filters:", { 
-          locationFilter, 
-          institutionFilter, 
-          shouldFetchAll, 
-          fetchLimit, 
-          fetchPage 
-        });
+        // console.log("Fetching teams with filters:", { 
+        //   locationFilter, 
+        //   institutionFilter, 
+        //   shouldFetchAll, 
+        //   fetchLimit, 
+        //   fetchPage 
+        // });
         
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getTeams`,
@@ -207,7 +207,7 @@ export function AdminDashboard() {
             instituteNOC: apiTeam.instituteNOC,
           }));
 
-          console.log("Before filters:", mappedTeams.length, "teams");
+          // console.log("Before filters:", mappedTeams.length, "teams");
 
           // Apply filters
           if (locationFilter !== "all") {
@@ -224,7 +224,7 @@ export function AdminDashboard() {
                 return notMaharashtra && notIndia;
               });
             }
-            console.log(`Location filter '${locationFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
+            // console.log(`Location filter '${locationFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
           }
 
           if (institutionFilter !== "all") {
@@ -240,7 +240,7 @@ export function AdminDashboard() {
                 return !inst.includes("pccoe") && !inst.includes("pimpri chinchwad college of engineering");
               });
             }
-            console.log(`Institution filter '${institutionFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
+            // console.log(`Institution filter '${institutionFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
           }
 
           if (countryFilter !== "all") {
@@ -253,19 +253,19 @@ export function AdminDashboard() {
               // exact match if a specific country name is provided
               mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() === countryFilter.toLowerCase());
             }
-            console.log(`Country filter '${countryFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
+            // console.log(`Country filter '${countryFilter}':`, beforeCount, "->", mappedTeams.length, "teams");
           }
 
           // If filters are active, apply pagination on filtered results
           const totalFiltered = mappedTeams.length;
-          console.log("After all filters:", totalFiltered, "teams");
+          // console.log("After all filters:", totalFiltered, "teams");
           
           if (shouldFetchAll) {
             // Paginate filtered results
             const start = (page - 1) * limit;
             const end = start + limit;
             mappedTeams = mappedTeams.slice(start, end);
-            console.log("Paginated to show:", start, "to", end, "=", mappedTeams.length, "teams");
+            // console.log("Paginated to show:", start, "to", end, "=", mappedTeams.length, "teams");
           }
 
           setTeams(mappedTeams);
@@ -276,7 +276,7 @@ export function AdminDashboard() {
           ));
           if (data?.stats) setStats(data.stats);
         } else if (Array.isArray(data?.data)) {
-          console.log("Using data.data path with", data.data.length, "teams");
+          // console.log("Using data.data path with", data.data.length, "teams");
           let mappedTeams: Team[] = data.data.map((apiTeam: any) => {
             const item: any = {
               _id:
@@ -322,7 +322,7 @@ export function AdminDashboard() {
             return item as Team;
           });
 
-          console.log("Before filters (data.data path):", mappedTeams.length, "teams");
+          // console.log("Before filters (data.data path):", mappedTeams.length, "teams");
 
           // Apply filters to data.data array too
           if (locationFilter !== "all") {
@@ -339,7 +339,7 @@ export function AdminDashboard() {
                 return notMaharashtra && notIndia;
               });
             }
-            console.log(`Location filter '${locationFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
+            // console.log(`Location filter '${locationFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
           }
 
           if (institutionFilter !== "all") {
@@ -355,7 +355,7 @@ export function AdminDashboard() {
                 return !inst.includes("pccoe") && !inst.includes("pimpri chinchwad college of engineering");
               });
             }
-            console.log(`Institution filter '${institutionFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
+            // console.log(`Institution filter '${institutionFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
           }
 
           if (countryFilter !== "all") {
@@ -367,10 +367,10 @@ export function AdminDashboard() {
             } else {
               mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() === countryFilter.toLowerCase());
             }
-            console.log(`Country filter '${countryFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
+            // console.log(`Country filter '${countryFilter}' (data.data):`, beforeCount, "->", mappedTeams.length, "teams");
           }
 
-          console.log("Final teams (data.data path):", mappedTeams.length);
+          // console.log("Final teams (data.data path):", mappedTeams.length);
 
           setTeams(mappedTeams);
           setTotal(mappedTeams.length);
@@ -431,7 +431,7 @@ export function AdminDashboard() {
           body: JSON.stringify({ query: q }),
         });
         const data = await res.json();
-        console.log("Search results:", data);
+        // console.log("Search results:", data);
         if (Array.isArray(data?.teams) || Array.isArray(data?.data)) {
           const src = Array.isArray(data?.teams) ? data.teams : data.data;
           const mappedTeams: Team[] = src.map((apiTeam: any) => ({
@@ -552,7 +552,7 @@ export function AdminDashboard() {
     // console.log(teams)
     const judge = users.find((u) => u.name === judgeId);
 
-    console.log(team, judge);
+    // console.log(team, judge);
 
     if (!team || !judge) return;
 
@@ -574,7 +574,7 @@ export function AdminDashboard() {
     );
 
     try {
-      console.log("Assigning judge with payload:", payload);
+      // console.log("Assigning judge with payload:", payload);
       const res = await fetch(`/api/assignJudge`, {
         method: "POST",
         headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
@@ -888,7 +888,7 @@ export function AdminDashboard() {
               <Select
                 value={locationFilter}
                 onValueChange={(value) => {
-                  console.log("Location filter changed to:", value);
+                  // console.log("Location filter changed to:", value);
                   setLocationFilter(value);
                   setSearchQuery(""); // Clear search query when filter changes
                   setPage(1);
@@ -911,7 +911,7 @@ export function AdminDashboard() {
               <Select
                 value={institutionFilter}
                 onValueChange={(value) => {
-                  console.log("Institution filter changed to:", value);
+                  // console.log("Institution filter changed to:", value);
                   setInstitutionFilter(value);
                   setSearchQuery(""); // Clear search query when filter changes
                   setPage(1);
@@ -934,7 +934,7 @@ export function AdminDashboard() {
               <Select
                 value={countryFilter}
                 onValueChange={(value) => {
-                  console.log("Country filter changed to:", value);
+                  // console.log("Country filter changed to:", value);
                   setCountryFilter(value);
                   setSearchQuery("");
                   setPage(1);

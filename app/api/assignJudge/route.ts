@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         { new: true }
       )
 
-      console.log("Video updated:", videoUpdate !== null);
+      // console.log("Video updated:", videoUpdate !== null);
 
     return NextResponse.json(
       {

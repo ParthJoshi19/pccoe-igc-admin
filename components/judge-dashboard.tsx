@@ -154,7 +154,7 @@ export function JudgeDashboard() {
         const { data } = await res.json();
         setTeams(data as Team[]);
 
-        console.log("Fetched teams for judge:", data);
+        // console.log("Fetched teams for judge:", data);
 
         // Derive evaluations from returned team docs (Video schema)
         const derived: TeamEvaluation[] = (data as any[]).map((t) => {

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       User.countDocuments(match),
     ])
 
-    console.log(docs);
+    // console.log(docs);
 
     const users = docs.map((u: any) => ({
       id: String(u._id),
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       assignedTeams: Array.isArray(u.assignedTeams) ? u.assignedTeams.map(String) : [],
     }))
 
-    console.log(users);
+    // console.log(users);
 
     const totalPages = Math.max(1, Math.ceil(total / limit))
 
