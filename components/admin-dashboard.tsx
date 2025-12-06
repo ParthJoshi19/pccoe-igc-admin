@@ -56,7 +56,7 @@ export function AdminDashboard() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
-  const [stats, setStats] = useState<{ totalTeams: number; approvedTeams: number; pendingTeams: number; rejectedTeams: number } | null>(null);
+  const [stats, setStats] = useState<{ totalTeams: number; approvedTeams: number; pendingTeams: number; rejectedTeams: number; canBeThoughtTeams: number } | null>(null);
   const [videosCount, setVideosCount] = useState<number>(0);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -407,6 +407,7 @@ export function AdminDashboard() {
               approvedTeams: data.counts.teams?.approved ?? prev?.approvedTeams ?? 0,
               pendingTeams: data.counts.teams?.pending ?? prev?.pendingTeams ?? 0,
               rejectedTeams: data.counts.teams?.rejected ?? prev?.rejectedTeams ?? 0,
+              canBeThoughtTeams: data.counts.teams?.canBeThought ?? prev?.canBeThoughtTeams ?? 0,
             }));
           }
         } catch (err) {
@@ -711,17 +712,6 @@ export function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approved</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {stats?.approvedTeams}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Pending Review
             </CardTitle>
@@ -735,6 +725,17 @@ export function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {stats?.approvedTeams}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Rejected
             </CardTitle>
@@ -743,6 +744,19 @@ export function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
               {stats?.rejectedTeams}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Can be thought
+            </CardTitle>
+            <Clock className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {stats?.canBeThoughtTeams}
             </div>
           </CardContent>
         </Card>

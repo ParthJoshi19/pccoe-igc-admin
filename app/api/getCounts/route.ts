@@ -13,12 +13,14 @@ export async function POST() {
 			approvedTeams,
 			pendingTeams,
 			rejectedTeams,
+			canBeThoughtTeams,
 		] = await Promise.all([
 			Video.countDocuments({}),
 			Team.countDocuments({}),
 			Video.countDocuments({ status: "Approved" }),
 			Video.countDocuments({ status: "Pending" }),
 			Video.countDocuments({ status: "Reject" }),
+			Video.countDocuments({ status: "Can be thought" }),
 		]);
 
 		return NextResponse.json({
@@ -30,6 +32,7 @@ export async function POST() {
 					approved: approvedTeams,
 					pending: pendingTeams,
 					rejected: rejectedTeams,
+					canBeThought: canBeThoughtTeams,
 				},
 			},
 		});
