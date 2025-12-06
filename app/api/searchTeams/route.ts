@@ -29,10 +29,20 @@ export async function POST(request: NextRequest) {
 		const safe = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 		const rx = new RegExp(safe, 'i')
 
+		// Support searching by numeric part for both formats: PCCOEIGC{num} and IGC{num}
+		const numMatch = query.match(/(\d{1,})/) // extract any number in the query
+		const possibleIds: string[] = []
+		if (numMatch) {
+			const n = numMatch[1]
+			possibleIds.push(`PCCOEIGC${n}`)
+			possibleIds.push(`IGC${n}`)
+		}
+
 		// Search within approved teams by multiple fields
 		const filter = {
 			registrationStatus: 'approved',
 			$or: [
+				// free-text fields
 				{ teamName: rx },
 				{ registrationNumber: rx },
 				{ teamId: rx },
@@ -40,6 +50,13 @@ export async function POST(request: NextRequest) {
 				{ mentorEmail: rx },
 				{ institution: rx },
 				{ track: rx },
+				// exact match by normalized numeric id for both formats
+				...(possibleIds.length
+					? [
+						{ teamId: { $in: possibleIds } },
+						{ registrationNumber: { $in: possibleIds } },
+					]
+					: []),
 			],
 		}
 
@@ -71,12 +88,30 @@ export async function POST(request: NextRequest) {
 			.lean()
 
 		// Attach video details if available
-		const teamIds = (docs as any[])
-			.map((d) => d.registrationNumber)
-			.filter(Boolean)
+		const teamIds = Array.from(
+			new Set(
+				(docs as any[])
+					.flatMap((d) => [d.registrationNumber, d.teamId])
+					.filter(Boolean)
+					.map(String)
+			)
+		)
 
-		const videos = teamIds.length
-			? await Video.find({ teamId: { $in: teamIds } })
+		// Build final list of IDs to query videos: include possibleIds from query
+		const videoQueryIds = Array.from(new Set([...(teamIds || []), ...(possibleIds || [])]))
+
+		// Build regex-based OR conditions to match either prefix with the numeric part
+		const orConditions = (videoQueryIds || [])
+			.map((id) => String(id))
+			.map((id) => id.replace(/\s+/g, ''))
+			.map((id) => id.replace(/\D/g, '')) // keep only digits
+			.filter((num) => num.length > 0)
+			.map((num) => ({ teamId: { $regex: new RegExp(`^(IGC|PCCOEIGC)${num}$`, 'i') } }))
+
+		// console.log('Video query conditions:', orConditions)
+
+		const videos = (orConditions.length > 0)
+			? await Video.find({ $or: orConditions })
 					.select({
 						_id: 0,
 						teamId: 1,
@@ -89,7 +124,11 @@ export async function POST(request: NextRequest) {
 					.lean()
 			: []
 
-		const videoMap = new Map<string, any>((videos as any[]).map((v) => [v.teamId, v]))
+		// Normalize IDs by extracting numeric part for reliable joining
+		const normalizeId = (id?: string) => String(id || '').replace(/\s+/g, '').replace(/\D/g, '')
+
+		// Map videos by normalized numeric id
+		const videoMap = new Map<string, any>((videos as any[]).map((v) => [normalizeId(v.teamId), v]))
 
 		// Fetch judge display names by username (assignedJudge)
 		const judgeUsernames = Array.from(
@@ -105,7 +144,8 @@ export async function POST(request: NextRequest) {
 		)
 
 		const results = (docs as any[]).map((d) => {
-			const v = videoMap.get(d.registrationNumber)
+			// Join by normalized numeric id from either field
+			const v = videoMap.get(normalizeId(d.registrationNumber)) || videoMap.get(normalizeId(d.teamId))
 			const assignedJudge = v?.assignedJudge
 			const assignedJudgeName = assignedJudge ? judgeNameMap.get(assignedJudge) || assignedJudge : undefined
 			return {

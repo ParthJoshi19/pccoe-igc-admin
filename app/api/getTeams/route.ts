@@ -34,26 +34,46 @@ import { NextRequest, NextResponse } from 'next/server'
       // optional: cap limit
       if (limit > 100) limit = 100
 
-      // Fetch ALL teams from the teams collection with pagination
+      // Connect to DB
       await connectToDB()
 
       const skip = (page - 1) * limit
 
-      // Base filter: Only include approved registrations
+      // First, fetch videos (primary list) and then enrich with team details
+      const videos = await Video.find({  })
+        .sort({ submittedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select({
+          _id: 0,
+          teamId: 1,
+          videoUrl: 1,
+          submittedAt: 1,
+          finalScore: 1,
+          status: 1,
+          assignedJudge: 1 as any,
+        })
+        .lean()
+
+      const videoTeamIds = (videos as any[]).map((v) => v.teamId).filter(Boolean)
+
+      // Base filter for teams: Only include approved registrations
       const filter: any = { registrationStatus: 'approved' }
+
+      // If we have video teamIds, restrict teams to those; otherwise keep filter open
+      if (videoTeamIds.length) {
+        filter.registrationNumber = { $in: videoTeamIds }
+      }
 
       // Apply location filter
       if (locationFilter && locationFilter !== 'all') {
         if (locationFilter === 'maharashtra' || locationFilter === 'maharastra') {
-          // Teams within Maharashtra, India
           filter.country = 'India'
           filter.state = { $regex: /^maharashtra$/i }
         } else if (locationFilter === 'non-maharashtra') {
-          // Teams within India but outside Maharashtra
           filter.country = 'India'
           filter.state = { $not: { $regex: /^maharashtra$/i } }
         } else if (locationFilter === 'international') {
-          // Teams outside India
           filter.country = { $not: { $regex: /^india$/i } }
         }
       }
@@ -68,11 +88,10 @@ import { NextRequest, NextResponse } from 'next/server'
         }
       }
 
-      const [docs, total] = await Promise.all([
+      // Fetch teams corresponding to the selected videos (or all if no videos matched)
+      const [docs, totalTeams] = await Promise.all([
         TeamRegistration.find(filter)
           .sort({ submittedAt: -1 })
-          .skip(skip)
-          .limit(limit)
           .select({
             _id: 0,
             teamId: 1,
@@ -98,24 +117,6 @@ import { NextRequest, NextResponse } from 'next/server'
           .lean(),
         TeamRegistration.countDocuments(filter),
       ])
-
-      // Fetch related videos for these teams and attach if submitted
-      const teamIds = (docs as any[]).map((d) => d.registrationNumber).filter(Boolean);
-      // console.log(teamIds);
-      const videos = teamIds.length
-        ? await Video.find({ teamId: { $in: teamIds } })
-            .select({
-              _id: 0,
-              teamId: 1,
-              videoUrl: 1,
-              submittedAt: 1,
-              finalScore: 1,
-              status: 1,
-              // include assignedJudge if present in collection
-              assignedJudge: 1 as any,
-            })
-            .lean()
-        : []
 
       const videoMap = new Map<string, any>((videos as any[]).map((v) => [v.teamId, v]))
 
@@ -146,10 +147,9 @@ import { NextRequest, NextResponse } from 'next/server'
         return new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime()
       })
 
+      const totalPages = Math.max(1, Math.ceil(totalTeams / limit))
 
-      const totalPages = Math.max(1, Math.ceil(total / limit))
-
-      return NextResponse.json({ data: sortedResults, pagination: { page, limit, total, totalPages } })
+      return NextResponse.json({ data: sortedResults, pagination: { page, limit, total: totalTeams, totalPages } })
     } catch (error) {
       return NextResponse.json(
         { error: 'Internal server error' },
