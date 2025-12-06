@@ -43,9 +43,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useRouter } from "next/router";
-import { ru } from "date-fns/locale";
-import { set } from "date-fns";
 
 export function AdminDashboard() {
   const { user } = useAuth();
