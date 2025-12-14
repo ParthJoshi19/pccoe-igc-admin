@@ -432,6 +432,13 @@ export function JudgeDashboard() {
         return;
       }
 
+      // Require a decision: status must not remain "Pending"
+      if (String(currentEvaluation.status).toLowerCase() === "pending") {
+        toast.error("Please choose a decision (Approved/Reject/Can be thought) before saving.");
+        setSaving(false);
+        return;
+      }
+
       // Compute final score from rubrics if any; fallback to star rating
       const finalFromRubrics = computeRatingFromRubrics(currentRubrics);
       const finalScore =
