@@ -39,7 +39,7 @@ Create a `.env.local` file in the root directory with the following environment 
 # MongoDB Connection String
 MONGODB_URI=mongodb://localhost:27017/igc-admin
 # Or for MongoDB Atlas:
-# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database-name
+
 
 # Backend API URL (for authentication and some operations)
 NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
