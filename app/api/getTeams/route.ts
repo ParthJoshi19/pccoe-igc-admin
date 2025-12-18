@@ -21,6 +21,8 @@ import { NextRequest, NextResponse } from 'next/server'
       const limitRaw = body?.limit
       const locationFilter: string = (body?.locationFilter ?? 'all') as string
       const institutionFilter: string = (body?.institutionFilter ?? 'all') as string
+      const countryFilter: string = (body?.countryFilter ?? 'all') as string
+      const stateFilter: string = (body?.stateFilter ?? 'all') as string
 
       // if (!token) {
       //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -86,6 +88,24 @@ import { NextRequest, NextResponse } from 'next/server'
         } else if (institutionFilter === 'other') {
           filter.institution = { $not: { $regex: pccoeRegex } }
         }
+      }
+
+      // Apply country filter
+      if (countryFilter && countryFilter !== 'all') {
+        if (countryFilter === 'india') {
+          filter.country = { $regex: /^india$/i }
+        } else if (countryFilter === 'non-india') {
+          filter.country = { $not: { $regex: /^india$/i } }
+        } else {
+          // exact match if a specific country name is provided
+          filter.country = { $regex: new RegExp(`^${countryFilter}$`, 'i') }
+        }
+      }
+
+      // Apply state filter
+      if (stateFilter && stateFilter !== 'all') {
+        // exact match if a specific state name is provided (case-insensitive)
+        filter.state = { $regex: new RegExp(`^${stateFilter}$`, 'i') }
       }
 
       // Fetch teams corresponding to the selected videos (or all if no videos matched)

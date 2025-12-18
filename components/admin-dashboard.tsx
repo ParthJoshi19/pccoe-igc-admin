@@ -61,14 +61,14 @@ export function AdminDashboard() {
   const [locationFilter, setLocationFilter] = useState<string>("all");
   const [institutionFilter, setInstitutionFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
-
-  const [loader,setLoader]=useState(false);
+  const [stateFilter, setStateFilter] = useState<string>("all");
+  const [loader, setLoader] = useState(false);
 
   const [pptPreviewUrl, setPptPreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   // NEW: evaluation modal state
   const [evalTeam, setEvalTeam] = useState<Team | null>(null);
-  
+
   // Stats for all teams
   const [allTeamsStats, setAllTeamsStats] = useState({
     totalTeams: 0,
@@ -107,7 +107,7 @@ export function AdminDashboard() {
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getJudges`,
           {
             method: "POST",
-            headers:{"Authorization":`Bearer ${user?.token}`},
+            headers: { "Authorization": `Bearer ${user?.token}` },
             body: JSON.stringify({ token: user?.token }),
           }
         );
@@ -140,10 +140,10 @@ export function AdminDashboard() {
         setLoadingTeams(true);
         setTeams([]);
         // If filters are active, fetch all teams instead of paginated
-        const shouldFetchAll = locationFilter !== "all" || institutionFilter !== "all" || countryFilter !== "all";
+        const shouldFetchAll = locationFilter !== "all" || institutionFilter !== "all" || countryFilter !== "all" ||  stateFilter !== "all";
         const fetchLimit = shouldFetchAll ? 1000 : limit;
         const fetchPage = shouldFetchAll ? 1 : page;
-        
+
         // console.log("Fetching teams with filters:", { 
         //   locationFilter, 
         //   institutionFilter, 
@@ -151,19 +151,20 @@ export function AdminDashboard() {
         //   fetchLimit, 
         //   fetchPage 
         // });
-        
+
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getTeams`,
           {
             method: "POST",
-            headers:{"Authorization":`Bearer ${user?.token}`},
-            body: JSON.stringify({ 
-              token: user?.token, 
-              page: fetchPage, 
+            headers: { "Authorization": `Bearer ${user?.token}` },
+            body: JSON.stringify({
+              token: user?.token,
+              page: fetchPage,
               limit: fetchLimit,
               locationFilter,
               institutionFilter,
               countryFilter,
+               stateFilter,
             }),
           }
         );
@@ -214,7 +215,7 @@ export function AdminDashboard() {
             const beforeCount = mappedTeams.length;
             if (locationFilter === "maharashtra") {
               mappedTeams = mappedTeams.filter(t => {
-                const isMaharashtra = (t.state?.toLowerCase() === "maharashtra" || t.state?.toLocaleLowerCase()==="maharastra");
+                const isMaharashtra = (t.state?.toLowerCase() === "maharashtra" || t.state?.toLocaleLowerCase() === "maharastra");
                 return isMaharashtra;
               });
             } else if (locationFilter === "international") {
@@ -259,7 +260,7 @@ export function AdminDashboard() {
           // If filters are active, apply pagination on filtered results
           const totalFiltered = mappedTeams.length;
           // console.log("After all filters:", totalFiltered, "teams");
-          
+
           if (shouldFetchAll) {
             // Paginate filtered results
             const start = (page - 1) * limit;
@@ -308,8 +309,8 @@ export function AdminDashboard() {
               video: apiTeam.video?.fileUrl
                 ? apiTeam.video
                 : apiTeam.video?.videoUrl
-                ? { fileUrl: apiTeam.video.videoUrl }
-                : undefined,
+                  ? { fileUrl: apiTeam.video.videoUrl }
+                  : undefined,
               videoUrl: apiTeam.video?.videoLink ?? apiTeam.videoLink,
               pptUrl: apiTeam.pptUrl,
               // NEW: assigned judge mapping from API
@@ -427,7 +428,7 @@ export function AdminDashboard() {
         // Regular search query
         const res = await fetch(`/api/searchTeams`, {
           method: "POST",
-          headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.token}` },
           body: JSON.stringify({ query: q }),
         });
         const data = await res.json();
@@ -469,8 +470,8 @@ export function AdminDashboard() {
             video: apiTeam.video?.fileUrl
               ? apiTeam.video
               : apiTeam.video?.videoUrl
-              ? { fileUrl: apiTeam.video.videoUrl }
-              : undefined,
+                ? { fileUrl: apiTeam.video.videoUrl }
+                : undefined,
             videoUrl: apiTeam.video?.videoLink ?? apiTeam.videoLink,
             pptUrl: apiTeam.pptUrl,
             assignedJudgeId: apiTeam.assignedJudgeId
@@ -507,7 +508,7 @@ export function AdminDashboard() {
   );
   const allJudges = users.filter((u) => u.role === "judge");
 
-  
+
 
   const teamStats = {
     total: stats?.totalTeams ?? teams.length,
@@ -526,7 +527,7 @@ export function AdminDashboard() {
       `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/notifyNewJudge`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.token}` },
         body: JSON.stringify(newUser),
       }
     );
@@ -577,7 +578,7 @@ export function AdminDashboard() {
       // console.log("Assigning judge with payload:", payload);
       const res = await fetch(`/api/assignJudge`, {
         method: "POST",
-        headers: { "Content-Type": "application/json","Authorization":`Bearer ${user?.token}` },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.token}` },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -604,10 +605,10 @@ export function AdminDashboard() {
       Array.isArray(x)
         ? x
         : x && typeof x === "object"
-        ? Object.values(x).flatMap((v: any) =>
+          ? Object.values(x).flatMap((v: any) =>
             Array.isArray(v) ? v : typeof v === "object" ? [v] : []
           )
-        : [];
+          : [];
     const list = toList(raw);
     return list.map((r: any) => ({
       label: r?.criterion ?? r?.criteria ?? r?.name ?? r?.title ?? "Criteria",
@@ -616,12 +617,12 @@ export function AdminDashboard() {
       ),
       max: Number(
         r?.max ??
-          r?.outOf ??
-          r?.maxScore ??
-          r?.weight ??
-          r?.total ??
-          r?.maximum ??
-          0
+        r?.outOf ??
+        r?.maxScore ??
+        r?.weight ??
+        r?.total ??
+        r?.maximum ??
+        0
       ),
       comment: r?.comments ?? r?.notes ?? r?.remark,
     }));
@@ -874,7 +875,7 @@ export function AdminDashboard() {
         <CardHeader>
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
             Filter Teams
           </CardTitle>
@@ -1255,7 +1256,7 @@ export function AdminDashboard() {
                     </div>
                   );
                 })}
-                {loader && <Loader className="animate-spin"/>}
+                {loader && <Loader className="animate-spin" />}
                 {teams.length === 0 && !loader && (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1441,8 +1442,8 @@ export function AdminDashboard() {
               const embedUrl = toYouTubeEmbed(videoUrl);
               const pptViewerUrl = pptUrl
                 ? `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(
-                    pptUrl
-                  )}`
+                  pptUrl
+                )}`
                 : null;
 
               return (
