@@ -197,7 +197,7 @@ export function AdminDashboard() {
           rubrics: apiTeam.Rubrics,
           instituteNOC: apiTeam.instituteNOC,
           video: apiTeam.video,
-          videoUrl: apiTeam.videoLink,
+          videoUrl: apiTeam.videoLink || apiTeam.video?.videoLink || apiTeam.video?.videoUrl,
           pptUrl: apiTeam.pptUrl,
         }));
 
@@ -937,7 +937,9 @@ export function AdminDashboard() {
               <div className="space-y-4">
                 {teams.map((team) => {
                   const t: any = team;
-                  let videoUrl = t?.demoVideo?.fileUrl || t?.presentationVideo?.fileUrl || t?.video?.fileUrl || t?.video?.videoUrl || t?.videoUrl;
+                  // Improved video URL resolution
+                  let videoUrl = t?.videoUrl || t?.demoVideo?.fileUrl || t?.presentationVideo?.fileUrl || t?.video?.fileUrl || t?.video?.videoUrl;
+
                   if (!videoUrl) {
                     const pptMaybeVideo = t?.presentationPPT?.fileUrl || t?.presentationPPT;
                     if (typeof pptMaybeVideo === "string" && /\.(mp4|webm|mov|m4v)$/i.test(pptMaybeVideo)) {
@@ -960,8 +962,8 @@ export function AdminDashboard() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium">{team.teamName}</p>
-                            <Badge className={evaluated ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"}>
-                              {evaluated ? "Evaluated" : "Unevaluated"}
+                            <Badge className={getStatusColor(team.status)}>
+                              {team.status}
                             </Badge>
                             {evaluated && totals.max > 0 && (
                               <span className="text-xs text-muted-foreground ml-1">
@@ -1236,11 +1238,11 @@ export function AdminDashboard() {
 
               // Video URL resolution
               const videoUrl: string | undefined =
+                t?.videoUrl ||
                 t?.demoVideo?.fileUrl ||
                 t?.presentationVideo?.fileUrl ||
                 t?.video?.fileUrl ||
-                t?.video?.videoUrl ||
-                t?.videoUrl;
+                t?.video?.videoUrl;
 
               // PPT URL resolution
               const pptUrl: string | undefined =
