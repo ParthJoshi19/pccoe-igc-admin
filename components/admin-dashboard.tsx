@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -62,7 +62,7 @@ export function AdminDashboard() {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(100);
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState<{
     totalTeams: number;
@@ -79,94 +79,13 @@ export function AdminDashboard() {
   const [institutionFilter, setInstitutionFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [loader, setLoader] = useState(false);
 
   const [pptPreviewUrl, setPptPreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [evalTeam, setEvalTeam] = useState<Team | null>(null);
-
-  const ITEMS_PER_SLOT = 10;
-
-  // Incremental loading interval ref to avoid heavy initial render
-  const intervalRef = useRef<number | null>(null);
-
-  const [allTeams, setAllTeams] = useState<Team[]>([]);
-  const [visibleTeams, setVisibleTeams] = useState<Team[]>([]);
-  useEffect(() => {
-    const handleScroll = () => {
-      if (
-        window.innerHeight + window.scrollY >=
-        document.body.offsetHeight - 200
-      ) {
-        if (visibleTeams.length < teams.length) {
-          loadMoreTeams();
-        }
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [visibleTeams, teams]);
-  // const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    // Clear any existing interval
-    if (intervalRef.current !== null) {
-      window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    // Reset lists before incremental fill
-    setAllTeams([]);
-    setVisibleTeams([]);
-    setPage(1);
-
-    if (!teams || teams.length === 0) {
-      return;
-    }
-
-    let index = 0;
-    const step = ITEMS_PER_SLOT; // load in chunks
-
-    intervalRef.current = window.setInterval(() => {
-      const nextIndex = Math.min(index + step, teams.length);
-      const chunk = teams.slice(index, nextIndex);
-
-      // Append to allTeams progressively
-      setAllTeams((prev) => [...prev, ...chunk]);
-
-      // Keep initial visible items limited to first page
-      setVisibleTeams((prev) => {
-        const merged = [...prev, ...chunk];
-        return merged.slice(0, ITEMS_PER_SLOT);
-      });
-
-      index = nextIndex;
-      if (index >= teams.length) {
-        if (intervalRef.current !== null) {
-          window.clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-      }
-    }, 150); // adjust timing to tune DOM/render pressure
-
-    // Cleanup when teams changes/unmounts
-    return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [teams]);
-
-  const loadMoreTeams = () => {
-    const nextPage = page + 1;
-    const nextItems = allTeams.slice(0, nextPage * ITEMS_PER_SLOT);
-
-    setVisibleTeams(nextItems);
-    setPage(nextPage);
-  };
 
   // Stats for all teams
   const [allTeamsStats, setAllTeamsStats] = useState({
@@ -253,7 +172,7 @@ export function AdminDashboard() {
       const data = await res.json();
 
       if (data.teams && Array.isArray(data.teams)) {
-        // console.log("Teams Data:", data.teams); // Debug log
+        console.log("Teams Data:", data.teams); // Debug log
 
         // Extract unique states
         const uniqueStates = Array.from(
@@ -371,10 +290,30 @@ export function AdminDashboard() {
           }
         }
 
+        // Status filter: separate Approved vs Can be thought
+        if (statusFilter !== "all") {
+          if (statusFilter === "approved") {
+            mappedTeams = mappedTeams.filter((t) => {
+              const x = String(t.status || "").toLowerCase().replace(/\s+/g, "");
+              return x === "approved";
+            });
+          } else if (statusFilter === "canbethought") {
+            mappedTeams = mappedTeams.filter((t) => {
+              const x = String(t.status || "").toLowerCase().replace(/\s+/g, "");
+              return x === "canbethought";
+            });
+          }
+        }
+
         // Calculate total after filtering
         const totalFiltered = mappedTeams.length;
 
-        setTeams(mappedTeams);
+        // Apply pagination based on current page and limit
+        const start = (page - 1) * limit;
+        const end = start + limit;
+        const paginatedTeams: Team[] = mappedTeams.slice(start, end);
+
+        setTeams(paginatedTeams);
         setTotal(totalFiltered);
       } else {
         console.error("No teams data found in response");
@@ -435,7 +374,8 @@ export function AdminDashboard() {
         locationFilter !== "all" ||
         institutionFilter !== "all" ||
         countryFilter !== "all" ||
-        stateFilter !== "all";
+        stateFilter !== "all" ||
+        statusFilter !== "all";
       if (!searchQuery.trim() || hasFilters) {
         getApprovedTeams();
       }
@@ -451,6 +391,7 @@ export function AdminDashboard() {
     institutionFilter,
     countryFilter,
     stateFilter,
+    statusFilter,
   ]);
 
   // Debounced team search
@@ -522,9 +463,24 @@ export function AdminDashboard() {
             instituteNOC: apiTeam.instituteNOC,
             idCardsPDF: apiTeam.idCardsPDF,
           }));
-          setTeams(mappedTeams);
-          setTotal(mappedTeams.length);
+          // Apply status filter if selected, then paginate
+          let filteredTeams: Team[] = mappedTeams;
+          if (statusFilter !== "all") {
+            if (statusFilter === "approved") {
+              filteredTeams = filteredTeams.filter((t: Team) => {
+                const x = String(t.status || "").toLowerCase().replace(/\s+/g, "");
+                return x === "approved";
+              });
+            } else if (statusFilter === "canbethought") {
+              filteredTeams = filteredTeams.filter((t: Team) => {
+                const x = String(t.status || "").toLowerCase().replace(/\s+/g, "");
+                return x === "canbethought";
+              });
+            }
+          }
+          setTotal(filteredTeams.length);
           setPage(1);
+          setTeams(filteredTeams.slice(0, limit));
         } else {
           setTeams([]);
           setTotal(0);
@@ -535,10 +491,7 @@ export function AdminDashboard() {
         setSearchLoading(false);
       }
     };
-
-    t = setTimeout(run, 400);
-    return () => clearTimeout(t);
-  }, [searchQuery, user?.token, getApprovedTeams]);
+  }, [searchQuery, user?.token, getApprovedTeams, statusFilter, limit, page]);
 
   const managedJudges = users.filter(
     (u) => u.role === "judge" && canManageUser(user!, u)
@@ -1040,6 +993,28 @@ export function AdminDashboard() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Status Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status</label>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  setSearchQuery("");
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="canbethought">Can be thought</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Clear Filters Button */}
@@ -1051,6 +1026,7 @@ export function AdminDashboard() {
                 setInstitutionFilter("all");
                 setCountryFilter("all");
                 setStateFilter("all");
+                setStatusFilter("all");
                 setSearchQuery("");
                 setPage(1);
               }}
@@ -1060,6 +1036,7 @@ export function AdminDashboard() {
                 institutionFilter === "all" &&
                 countryFilter === "all" &&
                 stateFilter === "all" &&
+                statusFilter === "all" &&
                 !searchQuery
               }
             >
@@ -1071,7 +1048,8 @@ export function AdminDashboard() {
           {(locationFilter !== "all" ||
             institutionFilter !== "all" ||
             countryFilter !== "all" ||
-            stateFilter !== "all") && (
+              stateFilter !== "all" ||
+              statusFilter !== "all") && (
             <div className="flex items-center gap-2 mt-4 pt-4 border-t">
               <span className="text-sm font-medium text-muted-foreground">
                 Active Filters:
@@ -1099,6 +1077,13 @@ export function AdminDashboard() {
                 {stateFilter !== "all" && (
                   <Badge variant="secondary">
                     {stateFilter.charAt(0).toUpperCase() + stateFilter.slice(1)}
+                  </Badge>
+                )}
+                {statusFilter !== "all" && (
+                  <Badge variant="secondary">
+                    {statusFilter === "approved"
+                      ? "Approved"
+                      : "Can be thought"}
                   </Badge>
                 )}
               </div>
@@ -1181,6 +1166,7 @@ export function AdminDashboard() {
                       <SelectItem value="10">10</SelectItem>
                       <SelectItem value="20">20</SelectItem>
                       <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-2">
@@ -1205,7 +1191,7 @@ export function AdminDashboard() {
               </div>
 
               <div className="space-y-4">
-                {visibleTeams.map((team) => {
+                {teams.map((team) => {
                   const t: any = team;
                   // Improved video URL resolution
                   let videoUrl =
