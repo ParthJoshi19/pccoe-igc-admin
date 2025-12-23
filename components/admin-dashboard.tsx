@@ -158,7 +158,7 @@ export function AdminDashboard() {
       const data = await res.json();
 
       if (data.teams && Array.isArray(data.teams)) {
-        console.log("Teams Data:", data.teams); // Debug log
+        // console.log("Teams Data:", data.teams); // Debug log
 
 
         // Extract unique states
