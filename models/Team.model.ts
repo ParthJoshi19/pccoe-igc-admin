@@ -116,7 +116,7 @@ const TeamRegistrationSchema = new mongoose.Schema(
         ],
         message: "Please select a valid program",
       },
-    },    country: {
+    }, country: {
       type: String,
       required: [true, "Country is required"],
       trim: true,
@@ -134,7 +134,7 @@ const TeamRegistrationSchema = new mongoose.Schema(
       type: [TeamMemberSchema],
       default: [], // ensure undefined members don't break validation/virtuals
       validate: {
-        validator: function(members: any) {
+        validator: function (members: any) {
           const validMembers = (members || []).filter((member: { fullName: string; }) =>
             member.fullName && member.fullName.trim() !== ""
           );
@@ -230,12 +230,16 @@ const TeamRegistrationSchema = new mongoose.Schema(
         ],
         message: "Please select a valid track",
       },
-    },    presentationPPT: {
+    }, presentationPPT: {
       type: DriveFileSchema,
       required: [true, "Presentation PPT Cloudinary link is required"],
     },
 
     // New optional demo video URL (Cloudinary)
+    videoLink: {
+      type: String,
+      trim: true,
+    },
 
     // Administrative fields
     registrationStatus: {
@@ -283,7 +287,7 @@ const TeamRegistrationSchema = new mongoose.Schema(
 );
 
 // Virtual for total team size (including leader)
-TeamRegistrationSchema.virtual('teamSize').get(function(this: any) {
+TeamRegistrationSchema.virtual('teamSize').get(function (this: any) {
   const validMembers = (this.members || []).filter((member: { fullName: string; }) =>
     member.fullName && member.fullName.trim() !== ""
   );
@@ -291,7 +295,7 @@ TeamRegistrationSchema.virtual('teamSize').get(function(this: any) {
 });
 
 // Virtual for formatted registration number
-TeamRegistrationSchema.virtual('formattedRegNumber').get(function(this: any) {
+TeamRegistrationSchema.virtual('formattedRegNumber').get(function (this: any) {
   if (this.registrationNumber) {
     return this.registrationNumber;
   }
@@ -299,7 +303,7 @@ TeamRegistrationSchema.virtual('formattedRegNumber').get(function(this: any) {
 });
 
 // Pre-save middleware to generate registration number for new teams
-TeamRegistrationSchema.pre('save', async function(this: any, next: () => void) {
+TeamRegistrationSchema.pre('save', async function (this: any, next: () => void) {
   if (this.isNew && !this.registrationNumber) {
     // Count all teams (including pending, approved, rejected)
     const count = await this.constructor.countDocuments({});
@@ -331,23 +335,23 @@ TeamRegistrationSchema.index({ submittedAt: -1 });
 TeamRegistrationSchema.index({ institution: 1 });
 
 // Static method to find teams by track
-TeamRegistrationSchema.statics.findByTrack = function(track: any) {
+TeamRegistrationSchema.statics.findByTrack = function (track: any) {
   return this.find({ track: track });
 };
 
 // Static method to get approved teams count
-TeamRegistrationSchema.statics.getApprovedCount = function() {
+TeamRegistrationSchema.statics.getApprovedCount = function () {
   return this.countDocuments({ registrationStatus: 'approved' });
 };
 
 // Instance method to approve team
-TeamRegistrationSchema.methods.approve = function() {
+TeamRegistrationSchema.methods.approve = function () {
   this.registrationStatus = 'approved';
   return this.save();
 };
 
 // Instance method to reject team
-TeamRegistrationSchema.methods.reject = function(reason: any) {
+TeamRegistrationSchema.methods.reject = function (reason: any) {
   this.registrationStatus = 'rejected';
   this.rejectionReason = reason;
   return this.save();
