@@ -28,6 +28,7 @@ export interface Team {
   state?: string;
   institution?: string;
   country?: string;
+  leaderName?: string;
 }
 
 

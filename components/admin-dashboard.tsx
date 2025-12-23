@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -35,7 +35,14 @@ import {
   MapPin,
   Building,
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+} from "recharts";
 import { type User, type Team, canManageUser } from "@/lib/auth";
 import { useAuth } from "@/contexts/auth-context";
 import { AddUserDialog } from "@/components/add-user-dialog";
@@ -57,7 +64,13 @@ export function AdminDashboard() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
-  const [stats, setStats] = useState<{ totalTeams: number; approvedTeams: number; pendingTeams: number; rejectedTeams: number; canBeThoughtTeams: number } | null>(null);
+  const [stats, setStats] = useState<{
+    totalTeams: number;
+    approvedTeams: number;
+    pendingTeams: number;
+    rejectedTeams: number;
+    canBeThoughtTeams: number;
+  } | null>(null);
   const [videosCount, setVideosCount] = useState<number>(0);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,11 +86,93 @@ export function AdminDashboard() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [evalTeam, setEvalTeam] = useState<Team | null>(null);
 
+  const ITEMS_PER_SLOT = 10;
+
+  // Incremental loading interval ref to avoid heavy initial render
+  const intervalRef = useRef<number | null>(null);
+
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [visibleTeams, setVisibleTeams] = useState<Team[]>([]);
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        window.innerHeight + window.scrollY >=
+        document.body.offsetHeight - 200
+      ) {
+        if (visibleTeams.length < teams.length) {
+          loadMoreTeams();
+        }
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [visibleTeams, teams]);
+  // const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    // Clear any existing interval
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    // Reset lists before incremental fill
+    setAllTeams([]);
+    setVisibleTeams([]);
+    setPage(1);
+
+    if (!teams || teams.length === 0) {
+      return;
+    }
+
+    let index = 0;
+    const step = ITEMS_PER_SLOT; // load in chunks
+
+    intervalRef.current = window.setInterval(() => {
+      const nextIndex = Math.min(index + step, teams.length);
+      const chunk = teams.slice(index, nextIndex);
+
+      // Append to allTeams progressively
+      setAllTeams((prev) => [...prev, ...chunk]);
+
+      // Keep initial visible items limited to first page
+      setVisibleTeams((prev) => {
+        const merged = [...prev, ...chunk];
+        return merged.slice(0, ITEMS_PER_SLOT);
+      });
+
+      index = nextIndex;
+      if (index >= teams.length) {
+        if (intervalRef.current !== null) {
+          window.clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      }
+    }, 150); // adjust timing to tune DOM/render pressure
+
+    // Cleanup when teams changes/unmounts
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [teams]);
+
+  const loadMoreTeams = () => {
+    const nextPage = page + 1;
+    const nextItems = allTeams.slice(0, nextPage * ITEMS_PER_SLOT);
+
+    setVisibleTeams(nextItems);
+    setPage(nextPage);
+  };
+
   // Stats for all teams
   const [allTeamsStats, setAllTeamsStats] = useState({
     totalTeams: 0,
     regional: { maharashtra: 0, outsideMaharashtra: 0 },
-    institutional: { pccoe: 0, nonPccoe: 0 }
+    institutional: { pccoe: 0, nonPccoe: 0 },
   });
 
   // Fetch judges
@@ -88,7 +183,7 @@ export function AdminDashboard() {
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/getJudges`,
         {
           method: "POST",
-          headers: { "Authorization": `Bearer ${user.token}` },
+          headers: { Authorization: `Bearer ${user.token}` },
           body: JSON.stringify({ token: user.token }),
         }
       );
@@ -117,18 +212,18 @@ export function AdminDashboard() {
   const getTeamStats = useCallback(async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch('/api/getTeamStats', {
-        method: 'GET',
+      const res = await fetch("/api/getTeamStats", {
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${user.token}`
-        }
+          Authorization: `Bearer ${user.token}`,
+        },
       });
       const data = await res.json();
       if (data.success && data.stats) {
         setAllTeamsStats(data.stats);
       }
     } catch (error) {
-      console.error('Failed to fetch team stats:', error);
+      console.error("Failed to fetch team stats:", error);
     }
   }, [user?.token]);
 
@@ -146,10 +241,10 @@ export function AdminDashboard() {
         {
           method: "GET",
           // credentials: 'include',
-          headers: { "Authorization": `Bearer ${user.token}` },
+          headers: { Authorization: `Bearer ${user.token}` },
         }
       );
-      console.log(res, "response");
+      // console.log(res);
 
       if (!res.ok) {
         throw new Error(`Failed to fetch teams: ${res.status}`);
@@ -160,21 +255,22 @@ export function AdminDashboard() {
       if (data.teams && Array.isArray(data.teams)) {
         // console.log("Teams Data:", data.teams); // Debug log
 
-
         // Extract unique states
-        const uniqueStates = Array.from(new Set(
-          data.teams
-            .map((t: any) => t.state)
-            .filter((s: any) => s && typeof s === 'string' && s.trim() !== '')
-            .map((s: string) => s.trim()) // Normalize
-        )).sort();
+        const uniqueStates = Array.from(
+          new Set(
+            data.teams
+              .map((t: any) => t.state)
+              .filter((s: any) => s && typeof s === "string" && s.trim() !== "")
+              .map((s: string) => s.trim()) // Normalize
+          )
+        ).sort();
         setAvailableStates(uniqueStates as string[]);
 
-        // Map API data to Team type
+        // Map API data to Team type (align with /api/v1/team-registrations/approved/all response)
         let mappedTeams: Team[] = data.teams.map((apiTeam: any) => ({
-          _id: apiTeam.id,
+          _id: apiTeam.id || apiTeam._id,
           teamName: apiTeam.teamName,
-          teamId: apiTeam.registrationNumber,
+          teamId: apiTeam.teamId || apiTeam.registrationNumber,
           leaderEmail: apiTeam.leaderEmail,
           leaderName: apiTeam.leaderName,
           institution: apiTeam.institution,
@@ -187,72 +283,98 @@ export function AdminDashboard() {
           topicName: apiTeam.topicName,
           topicDescription: apiTeam.topicDescription,
           track: apiTeam.track,
-          status: "approved",
-          submittedAt: new Date(apiTeam.submittedAt),
-          updatedAt: new Date(apiTeam.updatedAt),
-          assignedJudgeId: apiTeam.allocatedJudgeId !== "000000000000000000000000"
-            ? apiTeam.allocatedJudgeId
-            : undefined,
+          status: apiTeam.status || apiTeam.registrationStatus || "Approved",
+          submittedAt: new Date(
+            apiTeam.submittedAt || apiTeam.createdAt || Date.now()
+          ),
+          createdAt: new Date(
+            apiTeam.createdAt || apiTeam.submittedAt || Date.now()
+          ),
+          updatedAt: new Date(
+            apiTeam.updatedAt ||
+              apiTeam.approvedAt ||
+              apiTeam.submittedAt ||
+              Date.now()
+          ),
+          assignedJudgeId:
+            apiTeam.assignedJudge ||
+            (apiTeam.allocatedJudge &&
+            apiTeam.allocatedJudgeId !== "000000000000000000000000"
+              ? apiTeam.allocatedJudge
+              : undefined),
           assignedJudgeEmail: apiTeam.assignedJudge,
           presentationPPT: apiTeam.presentationPPT,
           idCardsPDF: apiTeam.idCardsPDF,
-          rubrics: apiTeam.Rubrics,
+          rubrics: apiTeam.rubrics || apiTeam.Rubrics,
           instituteNOC: apiTeam.instituteNOC,
           video: apiTeam.video,
-          videoUrl: apiTeam.videoLink || apiTeam.video?.videoLink || apiTeam.video?.videoUrl,
+          videoUrl:
+            apiTeam.videoUrl ||
+            apiTeam.videoLink ||
+            apiTeam.video?.videoLink ||
+            apiTeam.video?.videoUrl,
           pptUrl: apiTeam.pptUrl,
         }));
 
         // Apply filters
         if (locationFilter !== "all") {
           if (locationFilter === "maharashtra") {
-            mappedTeams = mappedTeams.filter(t =>
-              (t.state?.toLowerCase() === "maharashtra" || t.state?.toLowerCase() === "maharastra")
+            mappedTeams = mappedTeams.filter(
+              (t) =>
+                t.state?.toLowerCase() === "maharashtra" ||
+                t.state?.toLowerCase() === "maharastra"
             );
           } else if (locationFilter === "non-maharashtra") {
-            mappedTeams = mappedTeams.filter(t =>
-              (t.state?.toLowerCase() !== "maharashtra" && t.state?.toLowerCase() !== "maharastra")
+            mappedTeams = mappedTeams.filter(
+              (t) =>
+                t.state?.toLowerCase() !== "maharashtra" &&
+                t.state?.toLowerCase() !== "maharastra"
             );
           }
         }
 
         if (stateFilter !== "all") {
-          mappedTeams = mappedTeams.filter(t =>
-            (t.state || "").toLowerCase() === stateFilter.toLowerCase()
+          mappedTeams = mappedTeams.filter(
+            (t) => (t.state || "").toLowerCase() === stateFilter.toLowerCase()
           );
         }
 
         if (institutionFilter !== "all") {
           if (institutionFilter === "pccoe") {
-            mappedTeams = mappedTeams.filter(t => {
+            mappedTeams = mappedTeams.filter((t) => {
               const inst = t.institution?.toLowerCase() || "";
-              return inst.includes("pccoe") || inst.includes("pimpri chinchwad college of engineering");
+              return (
+                inst.includes("pccoe") ||
+                inst.includes("pimpri chinchwad college of engineering")
+              );
             });
           } else if (institutionFilter === "other") {
-            mappedTeams = mappedTeams.filter(t => {
+            mappedTeams = mappedTeams.filter((t) => {
               const inst = t.institution?.toLowerCase() || "";
-              return !inst.includes("pccoe") && !inst.includes("pimpri chinchwad college of engineering");
+              return (
+                !inst.includes("pccoe") &&
+                !inst.includes("pimpri chinchwad college of engineering")
+              );
             });
           }
         }
 
         if (countryFilter !== "all") {
           if (countryFilter === "india") {
-            mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() === "india");
+            mappedTeams = mappedTeams.filter(
+              (t) => (t.country || "").toLowerCase() === "india"
+            );
           } else if (countryFilter === "non-india") {
-            mappedTeams = mappedTeams.filter(t => (t.country || "").toLowerCase() !== "india");
+            mappedTeams = mappedTeams.filter(
+              (t) => (t.country || "").toLowerCase() !== "india"
+            );
           }
         }
 
         // Calculate total after filtering
         const totalFiltered = mappedTeams.length;
 
-        // Pagination
-        const start = (page - 1) * limit;
-        const end = start + limit;
-        const paginatedTeams = mappedTeams.slice(start, end);
-
-        setTeams(paginatedTeams);
+        setTeams(mappedTeams);
         setTotal(totalFiltered);
       } else {
         console.error("No teams data found in response");
@@ -267,7 +389,15 @@ export function AdminDashboard() {
       setLoadingTeams(false);
       setLoader(false);
     }
-  }, [user?.token, page, limit, locationFilter, institutionFilter, countryFilter, stateFilter]);
+  }, [
+    user?.token,
+    page,
+    limit,
+    locationFilter,
+    institutionFilter,
+    countryFilter,
+    stateFilter,
+  ]);
 
   // Fetch counts
   const fetchCounts = useCallback(async () => {
@@ -275,7 +405,7 @@ export function AdminDashboard() {
     try {
       const res = await fetch(`/api/getCounts`, {
         method: "GET",
-        headers: { "Authorization": `Bearer ${user.token}` }
+        headers: { Authorization: `Bearer ${user.token}` },
       });
       const data = await res.json();
       if (data?.counts) {
@@ -301,12 +431,27 @@ export function AdminDashboard() {
       fetchCounts();
 
       // Fetch teams when no search query OR when filters are active
-      const hasFilters = locationFilter !== "all" || institutionFilter !== "all" || countryFilter !== "all" || stateFilter !== "all";
+      const hasFilters =
+        locationFilter !== "all" ||
+        institutionFilter !== "all" ||
+        countryFilter !== "all" ||
+        stateFilter !== "all";
       if (!searchQuery.trim() || hasFilters) {
         getApprovedTeams();
       }
     }
-  }, [user?.token, fetchJudges, getTeamStats, fetchCounts, getApprovedTeams, searchQuery, locationFilter, institutionFilter, countryFilter, stateFilter]);
+  }, [
+    user?.token,
+    fetchJudges,
+    getTeamStats,
+    fetchCounts,
+    getApprovedTeams,
+    searchQuery,
+    locationFilter,
+    institutionFilter,
+    countryFilter,
+    stateFilter,
+  ]);
 
   // Debounced team search
   useEffect(() => {
@@ -324,7 +469,10 @@ export function AdminDashboard() {
       try {
         const res = await fetch(`/api/searchTeams`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user.token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${user.token}`,
+          },
           body: JSON.stringify({ query: q }),
         });
         const data = await res.json();
@@ -332,7 +480,11 @@ export function AdminDashboard() {
         if (Array.isArray(data?.teams) || Array.isArray(data?.data)) {
           const src = Array.isArray(data?.teams) ? data.teams : data.data;
           const mappedTeams: Team[] = src.map((apiTeam: any) => ({
-            _id: apiTeam.id || apiTeam.registrationNumber || apiTeam._id || String(apiTeam.teamId || apiTeam.id || Math.random()),
+            _id:
+              apiTeam.id ||
+              apiTeam.registrationNumber ||
+              apiTeam._id ||
+              String(apiTeam.teamId || apiTeam.id || Math.random()),
             teamName: apiTeam.teamName,
             teamId: apiTeam.registrationNumber ?? apiTeam.teamId,
             leaderEmail: apiTeam.leaderEmail,
@@ -349,12 +501,22 @@ export function AdminDashboard() {
             track: apiTeam.track,
             status: apiTeam.registrationStatus ?? "approved",
             submittedAt: new Date(apiTeam.submittedAt ?? Date.now()),
-            updatedAt: new Date(apiTeam.updatedAt ?? apiTeam.submittedAt ?? Date.now()),
-            presentationPPT: apiTeam.presentationPPT ?? (apiTeam.pptUrl ? { fileUrl: apiTeam.pptUrl } : undefined),
-            video: apiTeam.video?.fileUrl ? apiTeam.video : apiTeam.video?.videoUrl ? { fileUrl: apiTeam.video.videoUrl } : undefined,
+            updatedAt: new Date(
+              apiTeam.updatedAt ?? apiTeam.submittedAt ?? Date.now()
+            ),
+            presentationPPT:
+              apiTeam.presentationPPT ??
+              (apiTeam.pptUrl ? { fileUrl: apiTeam.pptUrl } : undefined),
+            video: apiTeam.video?.fileUrl
+              ? apiTeam.video
+              : apiTeam.video?.videoUrl
+              ? { fileUrl: apiTeam.video.videoUrl }
+              : undefined,
             videoUrl: apiTeam.video?.videoLink ?? apiTeam.videoLink,
             pptUrl: apiTeam.pptUrl,
-            assignedJudgeId: apiTeam.assignedJudgeId ? String(apiTeam.assignedJudgeId) : undefined,
+            assignedJudgeId: apiTeam.assignedJudgeId
+              ? String(apiTeam.assignedJudgeId)
+              : undefined,
             assignedJudge: apiTeam.assignedJudgeId,
             rubrics: apiTeam.Rubrics,
             instituteNOC: apiTeam.instituteNOC,
@@ -394,7 +556,10 @@ export function AdminDashboard() {
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/notifyNewJudge`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${user?.token}`,
+          },
           body: JSON.stringify(newUser),
         }
       );
@@ -430,7 +595,10 @@ export function AdminDashboard() {
     try {
       const res = await fetch(`/api/assignJudge`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user?.token}`,
+        },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -457,21 +625,34 @@ export function AdminDashboard() {
       Array.isArray(x)
         ? x
         : x && typeof x === "object"
-          ? Object.values(x).flatMap((v: any) =>
+        ? Object.values(x).flatMap((v: any) =>
             Array.isArray(v) ? v : typeof v === "object" ? [v] : []
           )
-          : [];
+        : [];
     const list = toList(raw);
     return list.map((r: any) => ({
       label: r?.criterion ?? r?.criteria ?? r?.name ?? r?.title ?? "Criteria",
-      score: Number(r?.score ?? r?.points ?? r?.value ?? r?.marks ?? r?.obtained ?? 0),
-      max: Number(r?.max ?? r?.outOf ?? r?.maxScore ?? r?.weight ?? r?.total ?? r?.maximum ?? 0),
+      score: Number(
+        r?.score ?? r?.points ?? r?.value ?? r?.marks ?? r?.obtained ?? 0
+      ),
+      max: Number(
+        r?.max ??
+          r?.outOf ??
+          r?.maxScore ??
+          r?.weight ??
+          r?.total ??
+          r?.maximum ??
+          0
+      ),
       comment: r?.comments ?? r?.notes ?? r?.remark,
     }));
   };
 
   const getRubricTotals = (items: NormRubric[]) => ({
-    total: items.reduce((a, b) => a + (Number.isFinite(b.score) ? b.score : 0), 0),
+    total: items.reduce(
+      (a, b) => a + (Number.isFinite(b.score) ? b.score : 0),
+      0
+    ),
     max: items.reduce((a, b) => a + (Number.isFinite(b.max) ? b.max : 0), 0),
   });
 
@@ -479,7 +660,9 @@ export function AdminDashboard() {
     const items = normalizeRubrics(t);
     if (!items.length) return false;
     const anyScore = items.some((i) => (i.score ?? 0) > 0);
-    const anyComment = items.some((i) => i.comment && String(i.comment).trim().length > 0);
+    const anyComment = items.some(
+      (i) => i.comment && String(i.comment).trim().length > 0
+    );
     return anyScore || anyComment;
   };
 
@@ -501,7 +684,9 @@ export function AdminDashboard() {
 
   const totalTeamsCount = total;
   const pageStart = teams.length ? (page - 1) * limit + 1 : 0;
-  const pageEnd = teams.length ? Math.min((page - 1) * limit + teams.length, totalTeamsCount) : 0;
+  const pageEnd = teams.length
+    ? Math.min((page - 1) * limit + teams.length, totalTeamsCount)
+    : 0;
   const isLastPage = pageEnd >= totalTeamsCount;
 
   // Use stats from API for all teams
@@ -517,7 +702,8 @@ export function AdminDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Admin Dashboard</h1>
           <p className="text-muted-foreground">
-            Welcome back, {user?.name}. Manage judges, review teams, and control hackathon submissions.
+            Welcome back, {user?.name}. Manage judges, review teams, and control
+            hackathon submissions.
           </p>
         </div>
         <div>
@@ -549,11 +735,15 @@ export function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Pending Review
+            </CardTitle>
             <Clock className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats?.pendingTeams}</div>
+            <div className="text-2xl font-bold text-yellow-600">
+              {stats?.pendingTeams}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -562,7 +752,9 @@ export function AdminDashboard() {
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats?.approvedTeams}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {stats?.approvedTeams}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -571,25 +763,35 @@ export function AdminDashboard() {
             <Clock className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats?.rejectedTeams}</div>
+            <div className="text-2xl font-bold text-red-600">
+              {stats?.rejectedTeams}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Can be thought</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Can be thought
+            </CardTitle>
             <Clock className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats?.canBeThoughtTeams}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {stats?.canBeThoughtTeams}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Managed Judges</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Managed Judges
+            </CardTitle>
             <Users className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{managedJudges.length}</div>
+            <div className="text-2xl font-bold text-purple-600">
+              {managedJudges.length}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -598,28 +800,50 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-semibold">Regional Distribution</CardTitle>
-            <CardDescription>Total {totalStatsTeams} teams across all regions</CardDescription>
+            <CardTitle className="text-lg font-semibold">
+              Regional Distribution
+            </CardTitle>
+            <CardDescription>
+              Total {totalStatsTeams} teams across all regions
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={[
-                    { name: "Maharashtra", value: maharashtraTeams, color: "#3b82f6" },
-                    { name: "Outside Maharashtra", value: outOfMaharashtraTeams, color: "#f97316" }
+                    {
+                      name: "Maharashtra",
+                      value: maharashtraTeams,
+                      color: "#3b82f6",
+                    },
+                    {
+                      name: "Outside Maharashtra",
+                      value: outOfMaharashtraTeams,
+                      color: "#f97316",
+                    },
                   ]}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                  label={({ name, percent }) =>
+                    `${name}: ${(percent * 100).toFixed(1)}%`
+                  }
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                 >
                   {[
-                    { name: "Maharashtra", value: maharashtraTeams, color: "#3b82f6" },
-                    { name: "Outside Maharashtra", value: outOfMaharashtraTeams, color: "#f97316" }
+                    {
+                      name: "Maharashtra",
+                      value: maharashtraTeams,
+                      color: "#3b82f6",
+                    },
+                    {
+                      name: "Outside Maharashtra",
+                      value: outOfMaharashtraTeams,
+                      color: "#f97316",
+                    },
                   ].map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -630,11 +854,15 @@ export function AdminDashboard() {
             </ResponsiveContainer>
             <div className="mt-4 grid grid-cols-2 gap-4 text-center">
               <div>
-                <p className="text-2xl font-bold text-blue-600">{maharashtraTeams}</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {maharashtraTeams}
+                </p>
                 <p className="text-sm text-muted-foreground">Maharashtra</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-orange-600">{outOfMaharashtraTeams}</p>
+                <p className="text-2xl font-bold text-orange-600">
+                  {outOfMaharashtraTeams}
+                </p>
                 <p className="text-sm text-muted-foreground">Outside MH</p>
               </div>
             </div>
@@ -643,8 +871,12 @@ export function AdminDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-semibold">Institutional Distribution</CardTitle>
-            <CardDescription>Total {totalStatsTeams} teams across all institutions</CardDescription>
+            <CardTitle className="text-lg font-semibold">
+              Institutional Distribution
+            </CardTitle>
+            <CardDescription>
+              Total {totalStatsTeams} teams across all institutions
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -652,19 +884,29 @@ export function AdminDashboard() {
                 <Pie
                   data={[
                     { name: "PCCOE", value: pccoeTeams, color: "#a855f7" },
-                    { name: "Other Institutions", value: nonPccoeTeams, color: "#14b8a6" }
+                    {
+                      name: "Other Institutions",
+                      value: nonPccoeTeams,
+                      color: "#14b8a6",
+                    },
                   ]}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                  label={({ name, percent }) =>
+                    `${name}: ${(percent * 100).toFixed(1)}%`
+                  }
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                 >
                   {[
                     { name: "PCCOE", value: pccoeTeams, color: "#a855f7" },
-                    { name: "Other Institutions", value: nonPccoeTeams, color: "#14b8a6" }
+                    {
+                      name: "Other Institutions",
+                      value: nonPccoeTeams,
+                      color: "#14b8a6",
+                    },
                   ].map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -675,12 +917,18 @@ export function AdminDashboard() {
             </ResponsiveContainer>
             <div className="mt-4 grid grid-cols-2 gap-4 text-center">
               <div>
-                <p className="text-2xl font-bold text-purple-600">{pccoeTeams}</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {pccoeTeams}
+                </p>
                 <p className="text-sm text-muted-foreground">PCCOE</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-teal-600">{nonPccoeTeams}</p>
-                <p className="text-sm text-muted-foreground">Other Institutions</p>
+                <p className="text-2xl font-bold text-teal-600">
+                  {nonPccoeTeams}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Other Institutions
+                </p>
               </div>
             </div>
           </CardContent>
@@ -694,7 +942,9 @@ export function AdminDashboard() {
             <Search className="h-5 w-5" />
             Filter Teams
           </CardTitle>
-          <CardDescription>Apply filters to view specific team categories</CardDescription>
+          <CardDescription>
+            Apply filters to view specific team categories
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -715,7 +965,9 @@ export function AdminDashboard() {
                 <SelectContent>
                   <SelectItem value="all">All Locations</SelectItem>
                   <SelectItem value="maharashtra">Maharashtra</SelectItem>
-                  <SelectItem value="non-maharashtra">Non-Maharashtra</SelectItem>
+                  <SelectItem value="non-maharashtra">
+                    Non-Maharashtra
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -803,25 +1055,40 @@ export function AdminDashboard() {
                 setPage(1);
               }}
               className="w-full"
-              disabled={locationFilter === "all" && institutionFilter === "all" && countryFilter === "all" && stateFilter === "all" && !searchQuery}
+              disabled={
+                locationFilter === "all" &&
+                institutionFilter === "all" &&
+                countryFilter === "all" &&
+                stateFilter === "all" &&
+                !searchQuery
+              }
             >
               Clear All Filters
             </Button>
           </div>
 
           {/* Active Filter Indicators */}
-          {(locationFilter !== "all" || institutionFilter !== "all" || countryFilter !== "all" || stateFilter !== "all") && (
+          {(locationFilter !== "all" ||
+            institutionFilter !== "all" ||
+            countryFilter !== "all" ||
+            stateFilter !== "all") && (
             <div className="flex items-center gap-2 mt-4 pt-4 border-t">
-              <span className="text-sm font-medium text-muted-foreground">Active Filters:</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                Active Filters:
+              </span>
               <div className="flex flex-wrap gap-2">
                 {locationFilter !== "all" && (
                   <Badge variant="secondary">
-                    {locationFilter === "maharashtra" ? "Maharashtra" : "Non-Maharashtra"}
+                    {locationFilter === "maharashtra"
+                      ? "Maharashtra"
+                      : "Non-Maharashtra"}
                   </Badge>
                 )}
                 {institutionFilter !== "all" && (
                   <Badge variant="secondary">
-                    {institutionFilter === "pccoe" ? "🎓 PCCOE" : "🏫 Other Institutions"}
+                    {institutionFilter === "pccoe"
+                      ? "🎓 PCCOE"
+                      : "🏫 Other Institutions"}
                   </Badge>
                 )}
                 {countryFilter !== "all" && (
@@ -855,7 +1122,8 @@ export function AdminDashboard() {
             <CardHeader>
               <CardTitle>Team Submissions</CardTitle>
               <CardDescription>
-                Review and manage team submissions, assign judges, and update status
+                Review and manage team submissions, assign judges, and update
+                status
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -937,20 +1205,36 @@ export function AdminDashboard() {
               </div>
 
               <div className="space-y-4">
-                {teams.map((team) => {
+                {visibleTeams.map((team) => {
                   const t: any = team;
                   // Improved video URL resolution
-                  let videoUrl = t?.videoUrl || t?.demoVideo?.fileUrl || t?.presentationVideo?.fileUrl || t?.video?.fileUrl || t?.video?.videoUrl;
+                  let videoUrl =
+                    t?.videoUrl ||
+                    t?.demoVideo?.fileUrl ||
+                    t?.presentationVideo?.fileUrl ||
+                    t?.video?.fileUrl ||
+                    t?.video?.videoUrl;
 
                   if (!videoUrl) {
-                    const pptMaybeVideo = t?.presentationPPT?.fileUrl || t?.presentationPPT;
-                    if (typeof pptMaybeVideo === "string" && /\.(mp4|webm|mov|m4v)$/i.test(pptMaybeVideo)) {
+                    const pptMaybeVideo =
+                      t?.presentationPPT?.fileUrl || t?.presentationPPT;
+                    if (
+                      typeof pptMaybeVideo === "string" &&
+                      /\.(mp4|webm|mov|m4v)$/i.test(pptMaybeVideo)
+                    ) {
                       videoUrl = pptMaybeVideo;
                     }
                   }
 
-                  const pptUrl = t?.presentationPPT?.fileUrl || (typeof t?.presentationPPT === "string" ? t.presentationPPT : undefined) || t?.pptUrl;
-                  const assignedJudge = users.find((u) => u.id === team.assignedJudgeId);
+                  const pptUrl =
+                    t?.presentationPPT?.fileUrl ||
+                    (typeof t?.presentationPPT === "string"
+                      ? t.presentationPPT
+                      : undefined) ||
+                    t?.pptUrl;
+                  const assignedJudge = users.find(
+                    (u) => u.id === team.assignedJudgeId
+                  );
                   const evaluated = isEvaluated(team);
                   const rubricsNorm = normalizeRubrics(team);
                   const totals = getRubricTotals(rubricsNorm);
@@ -1267,8 +1551,8 @@ export function AdminDashboard() {
               const embedUrl = toYouTubeEmbed(videoUrl);
               const pptViewerUrl = pptUrl
                 ? `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(
-                  pptUrl
-                )}`
+                    pptUrl
+                  )}`
                 : null;
 
               return (
@@ -1403,7 +1687,9 @@ export function AdminDashboard() {
                             <p className="text-sm font-medium text-muted-foreground">
                               Name
                             </p>
-                            <p className="text-base">{selectedTeam.leaderName}</p>
+                            <p className="text-base">
+                              {selectedTeam.leaderName}
+                            </p>
                           </div>
                           <div>
                             <p className="text-sm font-medium text-muted-foreground">
